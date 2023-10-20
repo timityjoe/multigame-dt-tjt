@@ -27,8 +27,20 @@ from gym.spaces.box import Box
 import matplotlib.pyplot as plt
 from IPython import display
 
+from loguru import logger
+# logger.remove()
+# logger.add(sys.stdout, level="INFO")
+# logger.add(sys.stdout, level="SUCCESS")
+# logger.add(sys.stdout, level="WARNING")
+
+# Convert np to rgb
+from PIL import Image
+from IPython import display
 
 class AtariPreprocessing(gym.Wrapper):
+    rgb_img = None
+
+
     """A class implementing image preprocessing for Atari 2600 agents.
 
     Specifically, this provides the following subset from the JAIR paper
@@ -47,7 +59,7 @@ class AtariPreprocessing(gym.Wrapper):
     and R2D2 papers.
     """
 
-    def __init__(self, env, frame_skip=4, terminal_on_life_loss=False, screen_size=84, max_random_noops=0):
+    def __init__(self, env, env_id, frame_skip=4, terminal_on_life_loss=False, screen_size=84, max_random_noops=0):
         """Constructor for an Atari 2600 preprocessor.
 
         Args:
@@ -86,11 +98,8 @@ class AtariPreprocessing(gym.Wrapper):
         self.lives = 0  # Will need to be set by reset().
 
         # Mod by Tim:
-        plt.figure(3)
-        plt.clf()
-        # plt.imshow(env.render(mode='rgb_array'))
-        plt.title("%s | Step: %d %s" % (env._spec.id,step, info))
-        plt.axis('off')
+        self.env_id = env_id
+        logger.info(f"env_id:{env_id}")
 
     @property
     def observation_space(self):
@@ -124,7 +133,7 @@ class AtariPreprocessing(gym.Wrapper):
         self._fetch_grayscale_observation(self.screen_buffer[0])
         self.screen_buffer[1].fill(0)
         return self._pool_and_resize()
-
+    
     def render(self, mode):
         """Renders the current screen, before preprocessing.
 
@@ -141,9 +150,8 @@ class AtariPreprocessing(gym.Wrapper):
           if mode='human': bool, whether the rendering was successful.
         """
         # Mod by Tim:
-        # return self.env.render(mode)
-        plt.imshow(self.observation)
-        return
+        return self.env.render(mode)
+
 
     def step(self, action):
         """Applies the given action in the environment.
@@ -188,10 +196,11 @@ class AtariPreprocessing(gym.Wrapper):
                 t = time_step - (self.frame_skip - 2)
                 self._fetch_grayscale_observation(self.screen_buffer[t])
 
-        # Mod by Tim:
+        # Mod by Tim: To render
         # Pool the last two observations.
-        # observation = self._pool_and_resize()
-        self.observation = self._pool_and_resize()
+        observation = self._pool_and_resize()
+        # logger.info(f"len observation:{len(observation)}") # size 84
+
 
         self.game_over = game_over
         return observation, accumulated_reward, is_terminal, info
@@ -208,6 +217,18 @@ class AtariPreprocessing(gym.Wrapper):
           observation: numpy array, the current observation in grayscale.
         """
         self.env.ale.getScreenGrayscale(output)
+
+        # Mod by Tim: To render
+        if self.env_id == 0:
+          # cv2.imshow('render_window',transformed_image)
+          # cv2.imshow('render_window', output)
+          # self.env.ale.saveScreenPNG('test_image.png')
+          np_img = self.env.render(mode='rgb_array')
+          # logger.info(f"len(img):{len(img)} type(img):{type(img)}") # size 210
+          self.rgb_img  = Image.fromarray(np_img)
+          logger.info(f"type(rgb_img):{type(self.rgb_img)}") # size 210
+          # self.rgb_img.show()
+
         return output
 
     def _pool_and_resize(self):
@@ -225,4 +246,5 @@ class AtariPreprocessing(gym.Wrapper):
         transformed_image = cv2.resize(
             self.screen_buffer[0], (self.screen_size, self.screen_size), interpolation=cv2.INTER_LINEAR
         )
+
         return np.asarray(transformed_image, dtype=np.uint8)

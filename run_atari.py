@@ -57,9 +57,10 @@ tf.config.set_visible_devices([], "GPU")
 
 
 # --- Create environments
+
 # from https://github.com/facebookresearch/moolib/blob/06e7a3e80c9f52729b4a6159f3fb4fc78986c98e/examples/atari/environment.py
-def create_env(env_name, sticky_actions=False, noop_max=30, terminal_on_life_loss=False):
-    logger.info(f"create_env() env_name:{env_name} sticky_actions:{sticky_actions} noop_max:{noop_max} terminal_on_life_loss:{terminal_on_life_loss}")
+def create_env(env_name, env_id, sticky_actions=False, noop_max=30, terminal_on_life_loss=False):
+    logger.info(f"create_env() env_id:{env_id}, env_name:{env_name} sticky_actions:{sticky_actions} noop_max:{noop_max} terminal_on_life_loss:{terminal_on_life_loss}")
     env = gym.make(  # Cf. https://brosa.ca/blog/ale-release-v0.7
         f"ALE/{env_name}-v5",
         obs_type="grayscale",  # "ram", "rgb", or "grayscale".
@@ -72,13 +73,14 @@ def create_env(env_name, sticky_actions=False, noop_max=30, terminal_on_life_los
         # Mod by Tim: For rendering purposes
         # render_mode=None,  # None, "human", or "rgb_array".
         # render_mode='human',  # None, "human", or "rgb_array".
-        # render_mode='rgb_array',  # None, "human", or "rgb_array".
+        render_mode='rgb_array',  # None, "human", or "rgb_array".
     )
 
     # Using wrapper from seed_rl in order to do random no-ops _before_ frameskipping.
     # gym.wrappers.AtariPreprocessing doesn't play well with the -v5 versions of the game.
     env = AtariPreprocessing(
         env,
+        env_id,
         frame_skip=4,
         terminal_on_life_loss=terminal_on_life_loss,
         screen_size=84,
@@ -91,8 +93,10 @@ def create_env(env_name, sticky_actions=False, noop_max=30, terminal_on_life_los
 env_name = "Breakout"
 # num_envs = 8
 num_envs = 2
-env_fn = lambda: create_env(env_name)
-envs = [env_fn() for _ in range(num_envs)]
+# env_fn = lambda: create_env(env_name)
+# envs = [env_fn() for _ in range(num_envs)]
+
+envs = [create_env(env_name, env_id=i) for i in range(num_envs)]
 logger.info(f"1) Create Env, num_envs: {num_envs}, envs[0]:{envs[0]}")
 
 # --- Create offline RL dataset

@@ -20,7 +20,7 @@ def batch_rollout1(device, envs, policy_fn, num_episodes, log_interval=None):
 
     num_epoch = range(num_episodes // num_batch)
     logger.info(f"batch_rollout1() - num_episodes:{num_episodes} num_steps:{num_steps} num_batch:{num_batch} num_epoch:{num_epoch} ")
-    logger.info(f"   envs:{envs} ")
+    logger.info(f"   envs[0]:{envs[0]} ")
 
     assert num_episodes % num_batch == 0
 
@@ -47,10 +47,11 @@ def batch_rollout1(device, envs, policy_fn, num_episodes, log_interval=None):
         for t in pbar:
             #-----------------------------------------
             # Mod by Tim: 
-            # Render to see whats going on.. Embedded in atari_preprocessing.py - AtariPreprocessing.render()
+            # Render to see whats going on.. 
+            # Embedded in atari_preprocessing.py - AtariPreprocessing._pool_and_resize()
             # Slow the sim
             time.sleep(0.01) 
-            [env.render(mode='human') for i, env in enumerate(envs)]
+            # [env.show() for env in envs]
             #-----------------------------------------
 
             done_prev = done
