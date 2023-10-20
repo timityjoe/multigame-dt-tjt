@@ -2,13 +2,16 @@
 
 ## Quickstart
 ```bash
-conda create --name mgdt python=3.10
-conda activate mgdt
-pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+conda create --name conda39-mgdt python=3.9
+conda activate conda39-mgdt
+# pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 -f https://download.pytorch.org/whl/torch_stable.html
+pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113^C
 pip install -r requirements.txt
 
-python scripts/download_weights.py
-python run.py
+pip install "gym[atari, accept-rom-license]"
+
+python3 scripts/download_weights.py
+python3 run_atari.py
 ```
 
 ## Baselines

@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from multigame_dt_utils import (
+from mingpt.multigame_dt_utils import (
     accuracy,
     autoregressive_generate,
     cross_entropy,

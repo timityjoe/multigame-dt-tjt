@@ -24,6 +24,9 @@ import gym
 import numpy as np
 from gym.spaces.box import Box
 
+import matplotlib.pyplot as plt
+from IPython import display
+
 
 class AtariPreprocessing(gym.Wrapper):
     """A class implementing image preprocessing for Atari 2600 agents.
@@ -82,6 +85,13 @@ class AtariPreprocessing(gym.Wrapper):
         self.game_over = False
         self.lives = 0  # Will need to be set by reset().
 
+        # Mod by Tim:
+        plt.figure(3)
+        plt.clf()
+        # plt.imshow(env.render(mode='rgb_array'))
+        plt.title("%s | Step: %d %s" % (env._spec.id,step, info))
+        plt.axis('off')
+
     @property
     def observation_space(self):
         # Return the observation space adjusted to match the shape of the processed
@@ -130,7 +140,10 @@ class AtariPreprocessing(gym.Wrapper):
           if mode='rgb_array': numpy array, the most recent screen.
           if mode='human': bool, whether the rendering was successful.
         """
-        return self.env.render(mode)
+        # Mod by Tim:
+        # return self.env.render(mode)
+        plt.imshow(self.observation)
+        return
 
     def step(self, action):
         """Applies the given action in the environment.
@@ -175,8 +188,10 @@ class AtariPreprocessing(gym.Wrapper):
                 t = time_step - (self.frame_skip - 2)
                 self._fetch_grayscale_observation(self.screen_buffer[t])
 
+        # Mod by Tim:
         # Pool the last two observations.
-        observation = self._pool_and_resize()
+        # observation = self._pool_and_resize()
+        self.observation = self._pool_and_resize()
 
         self.game_over = game_over
         return observation, accumulated_reward, is_terminal, info
