@@ -19,7 +19,7 @@ def batch_rollout1(device, envs, policy_fn, num_episodes, log_interval=None):
     num_steps = envs[0].spec.max_episode_steps
 
     num_epoch = range(num_episodes // num_batch)
-    logger.info(f"batch_rollout1() - num_episodes:{num_episodes} num_steps:{num_steps} num_batch:{num_batch} num_epoch:{num_epoch} ")
+    logger.info(f"batch_rollout1() - num_envs:{len(envs)} num_ep:{num_episodes} num_steps:{num_steps} num_batch:{num_batch} num_epoch:{num_epoch} ")
     logger.info(f"   envs[0]:{envs[0]} ")
 
     assert num_episodes % num_batch == 0

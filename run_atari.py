@@ -62,6 +62,7 @@ tf.config.set_visible_devices([], "GPU")
 def create_env(env_name, env_id, sticky_actions=False, noop_max=30, terminal_on_life_loss=False):
     logger.info(f"create_env() env_id:{env_id}, env_name:{env_name} sticky_actions:{sticky_actions} noop_max:{noop_max} terminal_on_life_loss:{terminal_on_life_loss}")
     env = gym.make(  # Cf. https://brosa.ca/blog/ale-release-v0.7
+    # env = gym.vector.make(  # Cf. https://brosa.ca/blog/ale-release-v0.7
         f"ALE/{env_name}-v5",
         obs_type="grayscale",  # "ram", "rgb", or "grayscale".
         # obs_type="rgb",  # "ram", "rgb", or "grayscale".
@@ -91,8 +92,8 @@ def create_env(env_name, env_id, sticky_actions=False, noop_max=30, terminal_on_
     return env
 
 env_name = "Breakout"
-# num_envs = 8
-num_envs = 2
+num_envs = 8
+# num_envs = 2
 # env_fn = lambda: create_env(env_name)
 # envs = [env_fn() for _ in range(num_envs)]
 

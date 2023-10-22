@@ -19,13 +19,10 @@
 Adapted from Dopamine.
 """
 
-import cv2
+
 import gym
 import numpy as np
 from gym.spaces.box import Box
-
-import matplotlib.pyplot as plt
-from IPython import display
 
 from loguru import logger
 # logger.remove()
@@ -34,11 +31,17 @@ from loguru import logger
 # logger.add(sys.stdout, level="WARNING")
 
 # Convert np to rgb
-from PIL import Image
-from IPython import display
+# import time
+# from PIL import Image
+# from IPython import display
+# import matplotlib.pyplot as plt
+import cv2
+
 
 class AtariPreprocessing(gym.Wrapper):
-    rgb_img = None
+    _rgb_img = None
+    _fig = None
+    _axarr = None
 
 
     """A class implementing image preprocessing for Atari 2600 agents.
@@ -100,6 +103,11 @@ class AtariPreprocessing(gym.Wrapper):
         # Mod by Tim:
         self.env_id = env_id
         logger.info(f"env_id:{env_id}")
+
+        # Mod by Tim: To render
+        # plt.figure()
+        # self._fig, self._axarr = plt.subplots(4,1) 
+
 
     @property
     def observation_space(self):
@@ -220,14 +228,16 @@ class AtariPreprocessing(gym.Wrapper):
 
         # Mod by Tim: To render
         if self.env_id == 0:
-          # cv2.imshow('render_window',transformed_image)
-          # cv2.imshow('render_window', output)
-          # self.env.ale.saveScreenPNG('test_image.png')
           np_img = self.env.render(mode='rgb_array')
-          # logger.info(f"len(img):{len(img)} type(img):{type(img)}") # size 210
-          self.rgb_img  = Image.fromarray(np_img)
-          logger.info(f"type(rgb_img):{type(self.rgb_img)}") # size 210
-          # self.rgb_img.show()
+          # logger.info(f"  len(img):{len(np_img)} type(img):{type(np_img)}") # size 210
+          # logger.info(f"  type(rgb_img):{type(self._rgb_img)}") # size 210
+          #---------------------------------
+          cv2.imshow('image', np_img)
+          # waitKey() n milliseconds. 
+          # If 0 is passed in the argument it waits till any key is pressed. 
+          cv2.waitKey(1) 
+
+
 
         return output
 
