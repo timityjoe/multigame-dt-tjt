@@ -48,10 +48,7 @@ def batch_rollout1(device, envs, policy_fn, num_episodes, log_interval=None):
             #-----------------------------------------
             # Mod by Tim: 
             # Render to see whats going on.. 
-            # Embedded in atari_preprocessing.py - AtariPreprocessing._pool_and_resize()
-            # Slow the sim
-            time.sleep(0.01) 
-            # [env.show() for env in envs]
+            # Embedded in atari_preprocessing.py - AtariPreprocessing._fetch_grayscale_observation()
             #-----------------------------------------
 
             done_prev = done

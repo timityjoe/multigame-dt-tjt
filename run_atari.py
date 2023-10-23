@@ -1,5 +1,8 @@
 # Original implementation:
 # https://github.com/etaoxing/multigame-dt
+# https://github.com/google-research/google-research/tree/master/multi_game_dt
+# Paper
+# https://arxiv.org/abs/2205.15241
 
 import functools
 import os
@@ -92,8 +95,8 @@ def create_env(env_name, env_id, sticky_actions=False, noop_max=30, terminal_on_
     return env
 
 env_name = "Breakout"
-num_envs = 8
-# num_envs = 2
+# num_envs = 8
+num_envs = 2
 # env_fn = lambda: create_env(env_name)
 # envs = [env_fn() for _ in range(num_envs)]
 
@@ -103,13 +106,16 @@ logger.info(f"1) Create Env, num_envs: {num_envs}, envs[0]:{envs[0]}")
 # --- Create offline RL dataset
 
 # --- Create model
-OBSERVATION_SHAPE = (84, 84)
+OBSERVATION_SHAPE = (84, 84) # Grayscale scenario, in turn decomposed into 6x6=36patches of 14px by 14px each
 PATCH_SHAPE = (14, 14)
 NUM_ACTIONS = 18  # Maximum number of actions in the full dataset.
 # rew=0: no reward, rew=1: score a point, rew=2: end game rew=3: lose a point
 NUM_REWARDS = 4
 RETURN_RANGE = [-20, 100]  # A reasonable range of returns identified in the dataset
 
+# See Table 1 of 
+# https://arxiv.org/abs/2205.15241
+# This is ~200M Params, Training time 8 days on 64 TPUv4
 model = MultiGameDecisionTransformer(
     img_size=OBSERVATION_SHAPE,
     patch_size=PATCH_SHAPE,

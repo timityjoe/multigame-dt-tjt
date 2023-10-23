@@ -226,18 +226,18 @@ class AtariPreprocessing(gym.Wrapper):
         """
         self.env.ale.getScreenGrayscale(output)
 
-        # Mod by Tim: To render
-        if self.env_id == 0:
-          np_img = self.env.render(mode='rgb_array')
-          # logger.info(f"  len(img):{len(np_img)} type(img):{type(np_img)}") # size 210
-          # logger.info(f"  type(rgb_img):{type(self._rgb_img)}") # size 210
-          #---------------------------------
-          cv2.imshow('image', np_img)
-          # waitKey() n milliseconds. 
-          # If 0 is passed in the argument it waits till any key is pressed. 
-          cv2.waitKey(1) 
-
-
+        # --------------------------------------------------
+        # Mod by Tim: To render RGB
+        # if self.env_id == 0:
+        #   np_img = self.env.render(mode='rgb_array')
+        #   # logger.info(f"  len(img):{len(np_img)} type(img):{type(np_img)}") # size 210
+        #   # logger.info(f"  type(rgb_img):{type(self._rgb_img)}") # size 210
+        #   #---------------------------------
+        #   cv2.imshow('image', np_img)
+        #   # waitKey() n milliseconds. 
+        #   # If 0 is passed in the argument it waits till any key is pressed. 
+        #   cv2.waitKey(1) 
+         # --------------------------------------------------
 
         return output
 
@@ -257,4 +257,16 @@ class AtariPreprocessing(gym.Wrapper):
             self.screen_buffer[0], (self.screen_size, self.screen_size), interpolation=cv2.INTER_LINEAR
         )
 
-        return np.asarray(transformed_image, dtype=np.uint8)
+        np_transformed_image = np.asarray(transformed_image, dtype=np.uint8)
+        # --------------------------------------------------
+        # Mod by Tim: To render grayscale (FPS 50% faster than RGB)
+        # if self.env_id == 0:
+        #   # logger.info(f"  len(img):{len(np_transformed_image)} type(img):{type(np_transformed_image)}") # size 84, type numpy.ndarray
+        #   #---------------------------------
+        #   cv2.imshow('image', np_transformed_image)
+        #   cv2.waitKey(1) 
+        # --------------------------------------------------
+
+
+        # return np.asarray(transformed_image, dtype=np.uint8)
+        return np_transformed_image
