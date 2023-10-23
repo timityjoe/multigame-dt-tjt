@@ -7,6 +7,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from loguru import logger
+# logger.remove()
+# logger.add(sys.stdout, level="INFO")
+# logger.add(sys.stdout, level="SUCCESS")
+# logger.add(sys.stdout, level="WARNING")
 
 # https://github.com/rwightman/pytorch-image-models/blob/29fda20e6d428bf636090ab207bbcf60617570ca/timm/layers/weight_init.py#L99
 def variance_scaling_(tensor: Tensor, scale=1.0, mode="fan_in", distribution="trunc_normal") -> Tensor:
@@ -77,6 +82,9 @@ def sample_from_logits(
             sample = top_indices[torch.arange(len(sample)), sample]
             # Reshape samples back to original dimensions.
             sample = torch.reshape(sample, sample_shape)
+
+    # logger.info(f"len(sample):{len(sample)}, type:{type(sample)} shape{sample.shape}") # shapetorch.Size([128, 2]), shapetorch.Size([2])
+
     return sample
 
 
