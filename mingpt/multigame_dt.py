@@ -17,7 +17,13 @@ from mingpt.multigame_dt_utils import (
     variance_scaling_,
 )
 
+from loguru import logger
+# logger.remove()
+# logger.add(sys.stdout, level="INFO")
+# logger.add(sys.stdout, level="SUCCESS")
+# logger.add(sys.stdout, level="WARNING")
 
+#------------------------------------------------
 class MLP(nn.Module):
     r"""A 2-layer MLP which widens then narrows the input."""
 
@@ -27,6 +33,7 @@ class MLP(nn.Module):
         init_scale: float,
         widening_factor: int = 4,
     ):
+        # logger.info(f"in_dim:{in_dim}, init_scale:{init_scale}, widening_factor:{widening_factor}")
         super().__init__()
         self._init_scale = init_scale
         self._widening_factor = widening_factor
@@ -44,12 +51,17 @@ class MLP(nn.Module):
         nn.init.zeros_(self.fc2.bias)
 
     def forward(self, x):
+        # x len = 2
+        # logger.info(f"x1 type:{type(x)} len:{len(x)}")
         x = self.fc1(x)
+        # logger.info(f"x2 type:{type(x)} len:{len(x)}")
         x = self.act(x)
+        # logger.info(f"x3 type:{type(x)} len:{len(x)}")
         x = self.fc2(x)
+        # logger.info(f"x4 type:{type(x)} len:{len(x)}")
         return x
 
-
+#------------------------------------------------
 class Attention(nn.Module):
     def __init__(
         self,
@@ -59,6 +71,7 @@ class Attention(nn.Module):
         qkv_bias: bool = True,
         proj_bias: bool = True,
     ):
+        # logger.info(f"dim:{dim} , num_heads:{num_heads}, w_init_scale:{w_init_scale}")
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
         self.num_heads = num_heads
@@ -66,6 +79,7 @@ class Attention(nn.Module):
         self.scale = head_dim**-0.5
         self.w_init_scale = w_init_scale
 
+        # Transformer Query Key Value - qkv
         self.qkv = nn.Linear(dim, 3 * dim, bias=qkv_bias)
         self.proj = nn.Linear(dim, dim, bias=proj_bias)
 
@@ -81,6 +95,8 @@ class Attention(nn.Module):
 
     def forward(self, x, mask: Optional[Tensor] = None) -> Tensor:
         B, T, C = x.shape
+        # logger.info(f"B:{B} T:{T} C:{C}") # B:2 T:156 C:1280
+
         qkv = self.qkv(x).reshape(B, T, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
 
@@ -90,11 +106,21 @@ class Attention(nn.Module):
             attn = attn.masked_fill(~mask.to(dtype=torch.bool), mask_value)
 
         attn = attn.softmax(dim=-1)
+
+        # attn len = 2
+        # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}")
+        # logger.info(f"attn.shape:{attn.shape}") # attn.shape:torch.Size([2, 20, 156, 156])
+
         x = (attn @ v).transpose(1, 2).reshape(B, T, C)
         x = self.proj(x)
+
+        # x len = 2
+        # logger.info(f"len(x):{len(x)}, type:{type(x)}")
+        # logger.info(f"x.shape:{x.shape}") # x.shape:torch.Size([2, 156, 1280])
+
         return x
 
-
+#------------------------------------------------
 class CausalSelfAttention(Attention):
     r"""Self attention with a causal mask applied."""
 
@@ -116,14 +142,16 @@ class CausalSelfAttention(Attention):
             device = x.device
             causal_mask = torch.tril(torch.ones((seq_len, seq_len), dtype=torch.bool, device=device))
         causal_mask = causal_mask[None, None, :, :]
+        # logger.info(f"causal_mask.shape:{causal_mask.shape}")  #causal_mask.shape:torch.Size([1, 1, 156, 156])
 
         # Similar to T5, tokens up to prefix_length can all attend to each other.
         causal_mask[:, :, :, :prefix_length] = 1
         mask = mask * causal_mask if mask is not None else causal_mask
+        # logger.info(f"mask.shape:{mask.shape}")  # mask.shape:torch.Size([2, 1, 156, 156])
 
         return super().forward(x, mask)
 
-
+#------------------------------------------------
 class Block(nn.Module):
     def __init__(self, embed_dim: int, num_heads: int, init_scale: float, dropout_rate: float):
         super().__init__()
@@ -140,7 +168,7 @@ class Block(nn.Module):
         x = x + self.dropout_2(self.mlp(self.ln_2(x)))
         return x
 
-
+#------------------------------------------------
 class Transformer(nn.Module):
     r"""A transformer stack."""
 
@@ -196,7 +224,7 @@ class Transformer(nn.Module):
         h = self.norm_f(h)
         return h
 
-
+#------------------------------------------------
 class MultiGameDecisionTransformer(nn.Module):
     def __init__(
         self,
@@ -239,6 +267,7 @@ class MultiGameDecisionTransformer(nn.Module):
 
         patch_height, patch_width = self.patch_size[0], self.patch_size[1]
         # If img_size=(84, 84), patch_size=(14, 14), then P = 84 / 14 = 6.
+
         self.image_emb = nn.Conv2d(
             in_channels=1,
             out_channels=self.d_model,
@@ -246,6 +275,7 @@ class MultiGameDecisionTransformer(nn.Module):
             stride=(patch_height, patch_width),
             padding="valid",
         )  # image_emb is now [BT x D x P x P].
+
         patch_grid = (self.img_size[0] // self.patch_size[0], self.img_size[1] // self.patch_size[1])
         num_patches = patch_grid[0] * patch_grid[1]
         self.image_pos_enc = nn.Parameter(torch.randn(1, 1, num_patches, self.d_model))
@@ -482,6 +512,9 @@ class MultiGameDecisionTransformer(nn.Module):
     ):
         r"""Calculate optimal action for the given sequence model."""
         logits_fn = self.forward
+        # logger.info(f"logits_fn:{logits_fn} ")
+
+
         obs, act, rew = inputs["observations"], inputs["actions"], inputs["rewards"]
         assert len(obs.shape) == 5
         assert len(act.shape) == 2
@@ -512,6 +545,11 @@ class MultiGameDecisionTransformer(nn.Module):
                 temperature=return_temperature,
                 top_percentile=return_top_percentile,
             )
+
+            # logger.info(f"logits:{logits} ")
+            # logger.info(f"len(logits):{len(logits)} type:{type(logits)} ")  #len logits 128
+            # logger.info(f"logits.shape:{logits.shape} ") # logits.shape:torch.Size([128, 2, 120])
+
             # Pick the highest return sample.
             ret_sample, _ = torch.max(ret_sample, dim=0)
             # Convert return tokens into return values.
@@ -547,4 +585,7 @@ class MultiGameDecisionTransformer(nn.Module):
             temperature=action_temperature,
             top_percentile=action_top_percentile,
         )
+
+        # logger.info(f"len(act_sample):{len(act_sample)}, type:{type(act_sample)}")
+
         return act_sample
