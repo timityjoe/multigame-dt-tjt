@@ -17,6 +17,8 @@ from mingpt.multigame_dt_utils import (
     variance_scaling_,
 )
 
+from mingpt.visualize_attention import plot_attention
+
 from loguru import logger
 # logger.remove()
 # logger.add(sys.stdout, level="INFO")
@@ -71,7 +73,7 @@ class Attention(nn.Module):
         qkv_bias: bool = True,
         proj_bias: bool = True,
     ):
-        # logger.info(f"dim:{dim} , num_heads:{num_heads}, w_init_scale:{w_init_scale}")
+        logger.info(f"Attention:: dim:{dim} , num_heads:{num_heads}, w_init_scale:{w_init_scale}")
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
         self.num_heads = num_heads
@@ -101,6 +103,8 @@ class Attention(nn.Module):
         q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
+        # plot_attention(attn)
+
         if mask is not None:
             mask_value = -torch.finfo(attn.dtype).max  # max_neg_value
             attn = attn.masked_fill(~mask.to(dtype=torch.bool), mask_value)
@@ -110,9 +114,12 @@ class Attention(nn.Module):
         # attn len = 2
         # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}")
         # logger.info(f"attn.shape:{attn.shape}") # attn.shape:torch.Size([2, 20, 156, 156])
+        plot_attention(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B, T, C)
         x = self.proj(x)
+
+        # plot_attention(x)
 
         # x len = 2
         # logger.info(f"len(x):{len(x)}, type:{type(x)}")
@@ -133,6 +140,8 @@ class CausalSelfAttention(Attention):
     ) -> Tensor:
         if x.ndim != 3:
             raise ValueError("Expect queries of shape [B, T, D].")
+
+        # logger.info(f"CausalSelfAttention x.shape:{x.shape} mask:{mask}")  # x.shape:torch.Size([2, 156, 1280])
 
         seq_len = x.shape[1]
         # If custom_causal_mask is None, the default causality assumption is
@@ -156,6 +165,7 @@ class Block(nn.Module):
     def __init__(self, embed_dim: int, num_heads: int, init_scale: float, dropout_rate: float):
         super().__init__()
         self.ln_1 = nn.LayerNorm(embed_dim)
+
         self.attn = CausalSelfAttention(embed_dim, num_heads=num_heads, w_init_scale=init_scale)
         self.dropout_1 = nn.Dropout(dropout_rate)
 
@@ -179,6 +189,7 @@ class Transformer(nn.Module):
         num_layers: int,
         dropout_rate: float,
     ):
+        logger.info(f"Transformer:: embed_dim:{embed_dim} num_heads(d_model // 64)={num_heads} ")
         super().__init__()
         self._num_layers = num_layers
         self._num_heads = num_heads
@@ -186,7 +197,8 @@ class Transformer(nn.Module):
 
         init_scale = 2.0 / self._num_layers
         self.layers = nn.ModuleList([])
-        for _ in range(self._num_layers):
+        for i in range(self._num_layers):
+            logger.info(f"Creating Block {i}, num_layers:{num_layers}") 
             block = Block(embed_dim, num_heads, init_scale, dropout_rate)
             self.layers.append(block)
         self.norm_f = nn.LayerNorm(embed_dim)
@@ -242,6 +254,10 @@ class MultiGameDecisionTransformer(nn.Module):
     ):
         super().__init__()
 
+        logger.info(f"MultiGameDecisionTransformer:: 0) Start") 
+        logger.info(f"      img_size:{img_size} patch_size:{patch_size} num_actions:{num_actions} num_rewards:{num_rewards} return_range:{return_range}")
+        logger.info(f"      d_model:{d_model} num_layers:{num_layers} dropout_rate:{dropout_rate} conv_dim:{conv_dim}")
+
         # Expected by the transformer model.
         if d_model % 64 != 0:
             raise ValueError(f"Model size {d_model} must be divisible by 64")
@@ -258,6 +274,7 @@ class MultiGameDecisionTransformer(nn.Module):
         self.single_return_token = single_return_token
         self.spatial_tokens = True
 
+        logger.info(f"MultiGameDecisionTransformer:: 1) Create transformer") 
         self.transformer = Transformer(
             embed_dim=self.d_model,
             num_heads=self.d_model // 64,
@@ -268,6 +285,7 @@ class MultiGameDecisionTransformer(nn.Module):
         patch_height, patch_width = self.patch_size[0], self.patch_size[1]
         # If img_size=(84, 84), patch_size=(14, 14), then P = 84 / 14 = 6.
 
+        logger.info(f"MultiGameDecisionTransformer:: 2) Image embedding") 
         self.image_emb = nn.Conv2d(
             in_channels=1,
             out_channels=self.d_model,
@@ -278,6 +296,7 @@ class MultiGameDecisionTransformer(nn.Module):
 
         patch_grid = (self.img_size[0] // self.patch_size[0], self.img_size[1] // self.patch_size[1])
         num_patches = patch_grid[0] * patch_grid[1]
+        logger.info(f"MultiGameDecisionTransformer:: 3) num_patches:{num_patches}, patch_grid[0]:{patch_grid[0]}") 
         self.image_pos_enc = nn.Parameter(torch.randn(1, 1, num_patches, self.d_model))
 
         self.ret_emb = nn.Embedding(self.num_returns, self.d_model)
