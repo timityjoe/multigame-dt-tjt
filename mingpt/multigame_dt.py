@@ -17,7 +17,7 @@ from mingpt.multigame_dt_utils import (
     variance_scaling_,
 )
 
-from mingpt.visualize_attention import plot_attention
+from mingpt.visualize_attention import plot_attention, plot_attention2
 
 from loguru import logger
 # logger.remove()
@@ -65,6 +65,8 @@ class MLP(nn.Module):
 
 #------------------------------------------------
 class Attention(nn.Module):
+    _np_attn_mean = None
+
     def __init__(
         self,
         dim: int,
@@ -114,7 +116,7 @@ class Attention(nn.Module):
         # attn len = 2
         # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}")
         # logger.info(f"attn.shape:{attn.shape}") # attn.shape:torch.Size([2, 20, 156, 156])
-        plot_attention(attn)
+        self._np_attn_mean = plot_attention2(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B, T, C)
         x = self.proj(x)
@@ -316,6 +318,20 @@ class MultiGameDecisionTransformer(nn.Module):
         self.act_linear = nn.Linear(self.d_model, self.num_actions)
         if self.predict_reward:
             self.rew_linear = nn.Linear(self.d_model, self.num_rewards)
+
+    #------------------------------------------
+    # Mod by Tim: Retrieve attention maps
+    # There are 10 layers, each with 20 attention heads (represented by a singular mean)
+    # So perform another mean across the 10 layers
+    def get_attention_map(self):
+        layers = self.transformer.layers
+        logger.info(f"  len(layers):{len(layers)}, type:{type(layers)}")
+
+        for layer in layers:
+            attn_map = layer.attn
+    
+    #------------------------------------------
+
 
     def reset_parameters(self):
         nn.init.trunc_normal_(self.image_emb.weight, std=0.02)

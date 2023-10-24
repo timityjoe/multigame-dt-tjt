@@ -34,7 +34,7 @@ def visualize_predict(model, img, img_size, patch_size, device):
     attention = visualize_attention(model, img_pre, patch_size, device)
     plot_attention(img, attention)
 
-#---------------------------------------------------------------
+
 def transform(img, img_size):
     img = transforms.Resize(img_size)(img)
     img = transforms.ToTensor()(img)
@@ -62,6 +62,7 @@ def visualize_attention(model, img, patch_size, device):
 
     return attentions
 
+#---------------------------------------------------------------
 def convertToCV(tensor):
     tensor = torch.squeeze(tensor)
     tensor = tensor.cpu().float().detach()
@@ -71,12 +72,13 @@ def convertToCV(tensor):
     tensor = tensor.numpy()
     return tensor
 
-# def plot_attention(img, attention):
-def plot_attention(attention):
-    # n_heads = attention.shape[0]
-    n_heads = attention.shape[1]
-    logger.info(f"plot_attention:: attention.shape:{attention.shape} n_heads:{n_heads} type:{type(attention)}")
 
+def min_max(x, mins, maxs, axis=None):
+    result = (x - mins)/(maxs - mins)
+    return result
+
+
+# def plot_attention(img, attention):
     # plt.figure(figsize=(10, 10))
     # text = ["Original Image", "Head Mean"]
     # for i, fig in enumerate([img, np.mean(attention, 0)]):
@@ -93,19 +95,104 @@ def plot_attention(attention):
     # plt.tight_layout()
     # plt.show()
 
-    for i in range(n_heads):
-        # numpy_image = attention[i].argmax(1).cpu().numpy()
-        # cv2_image = np.transpose(numpy_image, (1, 2, 0))
-        # cv2.imshow(f"attn_head_{i}", numpy_image)
-        attn = attention[i]
+def plot_attention(attention):
+    # n_heads = attention.shape[0]
+    n_heads = attention.shape[1]
+    logger.info(f"plot_attention:: attention.shape:{attention.shape} n_heads:{n_heads} type:{type(attention)}")
+
+    for i in range(0, n_heads):
+        logger.info(f"  attention[0]{i}.shape:{attention[0][i].shape} type:{type(attention[0][i])}")
+        attn = attention[0][i]
 
         # logger.info(f"plot_attention:: attention[{i}].shape:{attention[i].shape} type:{type(attention[i])}")
-        logger.info(f"plot_attention:: attn.shape:{attn.shape}")
+        logger.info(f"  attn.shape:{attn.shape}")
 
-        numpy_image = convertToCV(attn[1])
-        logger.info(f"plot_attention:: numpy_image.shape:{numpy_image.shape} type:{type(numpy_image)}")
+        # img = attn[0]
+        # logger.info(f"  img.shape:{img.shape} type:{type(img)}")
+        numpy_image = convertToCV(attn)
+
+        # Min max the image
+        max_len = numpy_image.max(axis=None, keepdims=True)
+        min_len = numpy_image.min(axis=None, keepdims=True)
+        numpy_image = min_max(numpy_image, min_len, max_len)
+
+        # Appy color map
+        numpy_image = numpy_image * 255.
+        numpy_image = cv2.applyColorMap(numpy_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
+
+        # numpy_image = img.argmax(1).cpu().numpy()
+        logger.info(f"  numpy_image.shape:{numpy_image.shape} type:{type(numpy_image)}")
 
         cv2.imshow(f"attn_head_{i}", numpy_image)
-        cv2.waitKey(2000) 
+        cv2.waitKey(500) 
     # time.sleep(20) # in seconds
     logger.info("Closing plot_attention()...")
+
+
+
+def plot_attention2(attention):
+    # n_heads = attention.shape[0]
+    n_heads = attention.shape[1]
+    # logger.info(f"plot_attention:: attention.shape:{attention.shape} n_heads:{n_heads} type:{type(attention)}") # attention.shape:torch.Size([2, 20, 156, 156])
+    attention_array = attention[0]
+    # logger.info(f"  B41: attention_array.shape:{attention_array.shape} ") 
+    # numpy_image_array = np.mean(numpy_image_array, axis=(0,1))
+    attention_array = torch.mean(attention_array, axis=0)
+    # logger.info(f"  AFT1: numpy_image_array.shape:{numpy_image_array.shape} numpy_image_array:{numpy_image_array}") 
+    # logger.info(f"  AFT1: attention_array.shape:{attention_array.shape} ")
+
+
+    # View individual (of the 20) patches
+    for i in range(0, n_heads):
+        # logger.info(f"  attention[0]{i}.shape:{attention[0][i].shape} type:{type(attention[0][i])}")
+        attn = attention[0][i]
+
+        # logger.info(f"plot_attention:: attention[{i}].shape:{attention[i].shape} type:{type(attention[i])}")
+        # logger.info(f"  attn.shape:{attn.shape}")
+
+        # img = attn[0]
+        # logger.info(f"  img.shape:{img.shape} type:{type(img)}")
+        numpy_image = convertToCV(attn)
+        # numpy_image = attn.argmax(0).cpu().numpy()
+
+        # Min max the image
+        max_len = numpy_image.max(axis=None, keepdims=True)
+        min_len = numpy_image.min(axis=None, keepdims=True)
+        numpy_image = min_max(numpy_image, min_len, max_len)
+        # logger.info(f"  numpy_image.shape:{numpy_image.shape}")
+
+        # Appy color map
+        numpy_image = numpy_image * 255.
+        numpy_image = cv2.applyColorMap(numpy_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
+        # logger.info(f"  numpy_image.shape:{numpy_image.shape}")
+
+        # Add to the array
+        # np.append(numpy_image_array, numpy_image)
+        # numpy_image_array = np.dstack((numpy_image_array, numpy_image))
+        # numpy_image_array = np.stack((numpy_image_array, numpy_image),axis=2)
+        # logger.info(f"  numpy_image.shape      :{numpy_image.shape} ")
+        # logger.info(f"  numpy_image_array.shape:{numpy_image_array.shape} ")
+
+        # cv2.imshow(f"attn_head_{i}", numpy_image)
+        # cv2.imshow(f"attn_head", numpy_image)
+        # cv2.waitKey(500) 
+
+    # View singular mean (of the 20) patches
+    numpy_image_array = convertToCV(attention_array)
+    # logger.info(f"  B42: numpy_image_array.shape:{numpy_image_array.shape} ")
+    max_len = numpy_image_array.max(axis=None, keepdims=True)
+    min_len = numpy_image_array.min(axis=None, keepdims=True)
+    numpy_image_array = min_max(numpy_image_array, min_len, max_len)
+    numpy_image = numpy_image * 255.
+    numpy_image = cv2.applyColorMap(numpy_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
+    # logger.info(f"  AFT2: numpy_image_array.shape:{numpy_image_array.shape} ")
+
+    # Plot the mean (single patch)
+    # cv2.imshow(f"numpy_image_array", numpy_image_array)
+    # cv2.waitKey(2000) 
+    # cv2.destroyAllWindows()
+
+    # logger.info("Closing plot_attention()...")
+
+    # Returns the mean; numpy_image_array.shape:(156, 156, 1)
+    return numpy_image
