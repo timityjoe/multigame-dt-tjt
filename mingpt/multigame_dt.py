@@ -240,6 +240,8 @@ class Transformer(nn.Module):
 
 #------------------------------------------------
 class MultiGameDecisionTransformer(nn.Module):
+    __np_attn_mean_container = None
+
     def __init__(
         self,
         img_size: Tuple[int],
@@ -319,6 +321,9 @@ class MultiGameDecisionTransformer(nn.Module):
         if self.predict_reward:
             self.rew_linear = nn.Linear(self.d_model, self.num_rewards)
 
+        # Mod by Tim: Init the array
+        self._np_attn_mean_container = np.empty((156, 156, 1))    
+
     #------------------------------------------
     # Mod by Tim: Retrieve attention maps
     # There are 10 layers, each with 20 attention heads (represented by a singular mean)
@@ -328,11 +333,9 @@ class MultiGameDecisionTransformer(nn.Module):
         logger.info(f"  len(layers):{len(layers)}, type:{type(layers)}")
 
         for layer in layers:
-            attn_map = layer.attn
+            self.__np_attn_mean_container.append(layer.attn._np_attn_mean) # attn = CausalSelfAttention, inherited from attn
     
     #------------------------------------------
-
-
     def reset_parameters(self):
         nn.init.trunc_normal_(self.image_emb.weight, std=0.02)
         nn.init.zeros_(self.image_emb.bias)
