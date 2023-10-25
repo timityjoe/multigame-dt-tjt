@@ -237,7 +237,7 @@ class AtariPreprocessing(gym.Wrapper):
         #   # waitKey() n milliseconds. 
         #   # If 0 is passed in the argument it waits till any key is pressed. 
         #   cv2.waitKey(1) 
-         # --------------------------------------------------
+        # --------------------------------------------------
 
         return output
 

@@ -84,7 +84,6 @@ def sample_from_logits(
             sample = torch.reshape(sample, sample_shape)
 
     # logger.info(f"len(sample):{len(sample)}, type:{type(sample)} shape{sample.shape}") # shapetorch.Size([128, 2]), shapetorch.Size([2])
-
     return sample
 
 
