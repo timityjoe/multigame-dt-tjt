@@ -8,6 +8,7 @@ import numpy as np
 # from functools import partial
 import torch
 import torch.nn as nn
+# import tensorflow as tf
 
 # import ipywidgets as widgets
 # import io
@@ -176,8 +177,14 @@ def attention_patches_mean(attention):
 def attention_layers_mean(_np_attn_container):
     # n_heads = np_attn_mean_container.shape[1]
     # logger.info(f"B4 ::attention.shape:{_np_attn_container.shape} ") # attention.shape:(156, 156, 3, 20)
-    np_image = np.mean(_np_attn_container, axis=3)
+    # np_image = np.mean(_np_attn_container, axis=3)
     # logger.info(f"AFT::np_image.shape:{np_image.shape} ")
+
+    tensor_image = torch.from_numpy(_np_attn_container)
+    logger.info(f"B4 ::tensor_image.shape:{tensor_image.shape}, type:{type(tensor_image)} ")
+    tensor_image = torch.mean(tensor_image, axis=3)
+    logger.info(f"AFT::tensor_image.shape:{tensor_image.shape} ")
+    np_image = tensor_image.numpy()
 
     # View singular mean (of the 10) patches
     # logger.info(f"  B42: numpy_image_array.shape:{numpy_image_array.shape} ")
