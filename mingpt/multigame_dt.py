@@ -240,7 +240,7 @@ class Transformer(nn.Module):
 
 #------------------------------------------------
 class MultiGameDecisionTransformer(nn.Module):
-    __np_attn_mean_container = None
+    _np_attn_mean_container = None
 
     def __init__(
         self,
@@ -322,7 +322,7 @@ class MultiGameDecisionTransformer(nn.Module):
             self.rew_linear = nn.Linear(self.d_model, self.num_rewards)
 
         # Mod by Tim: Init the array
-        self._np_attn_mean_container = np.empty((156, 156, 1))    
+        self._np_attn_mean_container = np.empty((156, 156, 3))    
 
     #------------------------------------------
     # Mod by Tim: Retrieve attention maps
@@ -330,10 +330,21 @@ class MultiGameDecisionTransformer(nn.Module):
     # So perform another mean across the 10 layers
     def get_attention_map(self):
         layers = self.transformer.layers
-        logger.info(f"  len(layers):{len(layers)}, type:{type(layers)}")
+        logger.info(f"get_attention_map:: len(layers):{len(layers)}, type:{type(layers)}")
 
-        for layer in layers:
-            self.__np_attn_mean_container.append(layer.attn._np_attn_mean) # attn = CausalSelfAttention, inherited from attn
+        for i, layer in enumerate(layers):
+            if layer.attn._np_attn_mean is None:
+                logger.info(f"  Layer:{i} Not initialized; type(_np_attn_mean):{type(layer.attn._np_attn_mean)}, returning...")
+                continue
+
+            # logger.info(f"  layer.attn._np_attn_mean type:{type(layer.attn._np_attn_mean)}")
+            # logger.info(f"  layer.attn._np_attn_mean len:{len(layer.attn._np_attn_mean)}")
+            logger.info(f"  layer.attn._np_attn_mean shape:{layer.attn._np_attn_mean.shape}")
+            logger.info(f"  ")
+            self._np_attn_mean_container = np.append(self._np_attn_mean_container, layer.attn._np_attn_mean, axis=3)     # attn = CausalSelfAttention, inherited from attn
+            logger.info(f"  model.attn.__np_attn_mean_container type:{type(self._np_attn_mean_container)}")
+            logger.info(f"  model.attn.__np_attn_mean_container len:{len(self._np_attn_mean_container)}")
+            logger.info(f"  model.attn.__np_attn_mean_container shape:{self._np_attn_mean_container.shape}")
     
     #------------------------------------------
     def reset_parameters(self):
@@ -613,6 +624,10 @@ class MultiGameDecisionTransformer(nn.Module):
                 sample_fn=ret_sample_fn,
             )
             inputs["returns-to-go"] = ret_sample
+
+        # --- Extract attention map(s)
+        logger.info(f"  X) Get Attention Map(s)")
+        self.get_attention_map()
 
         # Generate a sample from action logits.
         act_logits = logits_fn(inputs)["action_logits"][:, timestep, :]

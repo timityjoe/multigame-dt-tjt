@@ -163,7 +163,9 @@ optimal_action_fn = functools.partial(
 )
 
 # --- Extract attention map(s)
-np_attention_map = model.get_attention_map()
+# logger.info(f"X) Get Attention Map(s)")
+# np_attention_map = model.get_attention_map()
+
 
 # --- Calculate Results
 logger.info(f"6) Calculate Results")
