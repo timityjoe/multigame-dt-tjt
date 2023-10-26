@@ -95,42 +95,15 @@ def min_max(x, mins, maxs, axis=None):
     # plt.tight_layout()
     # plt.show()
 
-def plot_attention(attention):
-    # n_heads = attention.shape[0]
-    n_heads = attention.shape[1]
-    logger.info(f"plot_attention:: attention.shape:{attention.shape} n_heads:{n_heads} type:{type(attention)}")
-
-    for i in range(0, n_heads):
-        logger.info(f"  attention[0]{i}.shape:{attention[0][i].shape} type:{type(attention[0][i])}")
-        attn = attention[0][i]
-
-        # logger.info(f"plot_attention:: attention[{i}].shape:{attention[i].shape} type:{type(attention[i])}")
-        logger.info(f"  attn.shape:{attn.shape}")
-
-        # img = attn[0]
-        # logger.info(f"  img.shape:{img.shape} type:{type(img)}")
-        numpy_image = convertToCV(attn)
-
-        # Min max the image
-        max_len = numpy_image.max(axis=None, keepdims=True)
-        min_len = numpy_image.min(axis=None, keepdims=True)
-        numpy_image = min_max(numpy_image, min_len, max_len)
-
-        # Appy color map
-        numpy_image = numpy_image * 255.
-        numpy_image = cv2.applyColorMap(numpy_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
-
-        # numpy_image = img.argmax(1).cpu().numpy()
-        logger.info(f"  numpy_image.shape:{numpy_image.shape} type:{type(numpy_image)}")
-
-        cv2.imshow(f"attn_head_{i}", numpy_image)
-        cv2.waitKey(500) 
-    # time.sleep(20) # in seconds
-    logger.info("Closing plot_attention()...")
+def visualize_attn(attention, index):
+    # n_heads = attention.shape[1]
+    # logger.info(f"plot_attention:: attention.shape:{attention.shape} n_heads:{n_heads} type:{type(attention)}")
+    cv2.imshow(f"attn layer{index}", attention)
+    cv2.waitKey(500) 
+    cv2.destroyAllWindows()
 
 
-
-def plot_attention2(attention):
+def attention_patches_mean(attention):
     # n_heads = attention.shape[0]
     n_heads = attention.shape[1]
     # logger.info(f"plot_attention:: attention.shape:{attention.shape} n_heads:{n_heads} type:{type(attention)}") # attention.shape:torch.Size([2, 20, 156, 156])
@@ -178,21 +151,48 @@ def plot_attention2(attention):
         # cv2.waitKey(500) 
 
     # View singular mean (of the 20) patches
-    numpy_image_array = convertToCV(attention_array)
+    np_image = convertToCV(attention_array)
     # logger.info(f"  B42: numpy_image_array.shape:{numpy_image_array.shape} ")
-    max_len = numpy_image_array.max(axis=None, keepdims=True)
-    min_len = numpy_image_array.min(axis=None, keepdims=True)
-    numpy_image_array = min_max(numpy_image_array, min_len, max_len)
-    numpy_image = numpy_image * 255.
-    numpy_image = cv2.applyColorMap(numpy_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
+    max_len = np_image.max(axis=None, keepdims=True)
+    min_len = np_image.min(axis=None, keepdims=True)
+    np_image = min_max(np_image, min_len, max_len)
+    np_image = np_image * 255.
+    np_image = cv2.applyColorMap(np_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
     # logger.info(f"  AFT2: numpy_image_array.shape:{numpy_image_array.shape} ")
 
     # Plot the mean (single patch)
-    # cv2.imshow(f"numpy_image_array", numpy_image_array)
+    # cv2.imshow(f"np_image", np_image)
     # cv2.waitKey(2000) 
     # cv2.destroyAllWindows()
 
     # logger.info("Closing plot_attention()...")
 
     # Returns the mean; numpy_image_array.shape:(156, 156, 1)
-    return numpy_image
+    return np_image
+
+
+
+
+def attention_layers_mean(_np_attn_container):
+    # n_heads = np_attn_mean_container.shape[1]
+    # logger.info(f"B4 ::attention.shape:{_np_attn_container.shape} ") # attention.shape:(156, 156, 3, 20)
+    np_image = np.mean(_np_attn_container, axis=3)
+    # logger.info(f"AFT::np_image.shape:{np_image.shape} ")
+
+    # View singular mean (of the 10) patches
+    # logger.info(f"  B42: numpy_image_array.shape:{numpy_image_array.shape} ")
+    max_len = np_image.max(axis=None, keepdims=True)
+    min_len = np_image.min(axis=None, keepdims=True)
+    np_image = min_max(np_image, min_len, max_len)
+    np_image = np_image * 255.
+    np_image = cv2.applyColorMap(np_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
+    logger.info(f"  max_len:{max_len} min_len:{min_len}")
+    logger.info(f"  np_image.shape:{np_image.shape}")
+
+    # Plot the mean (single patch)
+    cv2.imshow(f"_np_attn_container", np_image)
+    cv2.waitKey(500) 
+    cv2.destroyAllWindows()
+
+    # Returns the mean; numpy_image_array.shape:(156, 156, 1)
+    return np_image
