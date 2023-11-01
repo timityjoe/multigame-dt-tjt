@@ -111,7 +111,7 @@ def attention_patches_mean(attention):
     attention_array = attention[0]
     # logger.info(f"  B41: attention_array.shape:{attention_array.shape} ") 
     # numpy_image_array = np.mean(numpy_image_array, axis=(0,1))
-    attention_array = torch.mean(attention_array, axis=0)
+    attention_array = torch.mean(attention_array, axis=0) # ([156, 156])
     # logger.info(f"  AFT1: numpy_image_array.shape:{numpy_image_array.shape} numpy_image_array:{numpy_image_array}") 
     # logger.info(f"  AFT1: attention_array.shape:{attention_array.shape} ")
 
@@ -160,8 +160,12 @@ def attention_patches_mean(attention):
     np_image = np_image * 255.
     np_image = cv2.applyColorMap(np_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
     # logger.info(f"  AFT2: numpy_image_array.shape:{numpy_image_array.shape} ")
-    # logger.info(f"  max_len:{max_len} min_len:{min_len}")
-    # logger.info(f"  np_image.shape:{np_image.shape}")
+
+    # # Check:
+    # max_len_aft = np_image.max(axis=None, keepdims=True)
+    # min_len_aft = np_image.min(axis=None, keepdims=True)
+    # logger.info(f"  max_len:{max_len} max_len_aft:{max_len_aft} min_len:{min_len} min_len_aft:{min_len_aft}")
+    # logger.info(f"  np_image.shape:{np_image.shape} type:{type(np_image)}")
 
     # Plot the mean (single patch)
     # cv2.imshow(f"np_image", np_image)
