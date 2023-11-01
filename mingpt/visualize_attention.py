@@ -160,6 +160,8 @@ def attention_patches_mean(attention):
     np_image = np_image * 255.
     np_image = cv2.applyColorMap(np_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
     # logger.info(f"  AFT2: numpy_image_array.shape:{numpy_image_array.shape} ")
+    # logger.info(f"  max_len:{max_len} min_len:{min_len}")
+    # logger.info(f"  np_image.shape:{np_image.shape}")
 
     # Plot the mean (single patch)
     # cv2.imshow(f"np_image", np_image)
@@ -175,16 +177,28 @@ def attention_patches_mean(attention):
 
 
 def attention_layers_mean(_np_attn_container):
-    # n_heads = np_attn_mean_container.shape[1]
-    # logger.info(f"B4 ::attention.shape:{_np_attn_container.shape} ") # attention.shape:(156, 156, 3, 20)
-    # np_image = np.mean(_np_attn_container, axis=3)
+    n_heads = _np_attn_container.shape[0]
+    # logger.info(f"B4 ::attention.shape:{_np_attn_container.shape}, n_heads:{n_heads} ") # attention.shape:(156, 156, 3, 20)
+
+    # View individual (of the 20) patches
+    # for i in range(0, n_heads):
+    #     attn = _np_attn_container[i]     
+    #     max_len = attn.max(axis=None, keepdims=True)
+    #     min_len = attn.min(axis=None, keepdims=True)
+    #     logger.info(f"  max_len:{max_len} min_len:{min_len}")
+    #     logger.info(f"  attn.shape:{attn.shape} ")        
+    #     cv2.imshow(f"attn_{i}", attn)
+    #     cv2.waitKey(500) 
+
+
+    np_image = np.mean(_np_attn_container, axis=0)
     # logger.info(f"AFT::np_image.shape:{np_image.shape} ")
 
-    tensor_image = torch.from_numpy(_np_attn_container)
-    logger.info(f"B4 ::tensor_image.shape:{tensor_image.shape}, type:{type(tensor_image)} ")
-    tensor_image = torch.mean(tensor_image, axis=3)
-    logger.info(f"AFT::tensor_image.shape:{tensor_image.shape} ")
-    np_image = tensor_image.numpy()
+    # tensor_image = torch.from_numpy(_np_attn_container)
+    # logger.info(f"B4 ::tensor_image.shape:{tensor_image.shape}, type:{type(tensor_image)} ")
+    # tensor_image = torch.mean(tensor_image, axis=3)
+    # logger.info(f"AFT::tensor_image.shape:{tensor_image.shape} ")
+    # np_image = tensor_image.numpy()
 
     # View singular mean (of the 10) patches
     # logger.info(f"  B42: numpy_image_array.shape:{numpy_image_array.shape} ")
@@ -193,13 +207,13 @@ def attention_layers_mean(_np_attn_container):
     np_image = min_max(np_image, min_len, max_len)
     np_image = np_image * 255.
     np_image = cv2.applyColorMap(np_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
-    logger.info(f"  max_len:{max_len} min_len:{min_len}")
-    logger.info(f"  np_image.shape:{np_image.shape}")
+    # logger.info(f"  max_len:{max_len} min_len:{min_len}")
+    # logger.info(f"  np_image.shape:{np_image.shape}")
 
     # Plot the mean (single patch)
-    cv2.imshow(f"_np_attn_container", np_image)
-    cv2.waitKey(500) 
-    cv2.destroyAllWindows()
+    # cv2.imshow(f"_np_attn_container", np_image)
+    # cv2.waitKey(500) 
+    # cv2.destroyAllWindows()
 
     # Returns the mean; numpy_image_array.shape:(156, 156, 1)
     return np_image
