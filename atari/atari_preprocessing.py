@@ -228,15 +228,16 @@ class AtariPreprocessing(gym.Wrapper):
 
         # --------------------------------------------------
         # Mod by Tim: To render RGB
-        # if self.env_id == 0:
-        #   np_img = self.env.render(mode='rgb_array')
-        #   # logger.info(f"  len(img):{len(np_img)} type(img):{type(np_img)}") # size 210
-        #   # logger.info(f"  type(rgb_img):{type(self._rgb_img)}") # size 210
-        #   #---------------------------------
-        #   cv2.imshow('image', np_img)
-        #   # waitKey() n milliseconds. 
-        #   # If 0 is passed in the argument it waits till any key is pressed. 
-        #   cv2.waitKey(1) 
+        if self.env_id == 0:
+          np_img = self.env.render(mode='rgb_array')
+          # logger.info(f"  len(img):{len(np_img)} type(img):{type(np_img)}") # size 210
+          # logger.info(f"  type(rgb_img):{type(self._rgb_img)}") # size 210
+          #---------------------------------
+          cv2.imshow('image', np_img)
+          # logger.info(f"_fetch_grayscale_observation() - np_img.shape:{np_img.shape} ") # np_img.shape:(210, 160, 3)
+          # waitKey() n milliseconds. 
+          # If 0 is passed in the argument it waits till any key is pressed. 
+          cv2.waitKey(1) 
         # --------------------------------------------------
 
         return output

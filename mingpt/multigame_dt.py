@@ -241,6 +241,7 @@ class Transformer(nn.Module):
 #------------------------------------------------
 class MultiGameDecisionTransformer(nn.Module):
     _np_attn_container = None
+    _np_attn_mean = None
 
     def __init__(
         self,
@@ -323,7 +324,9 @@ class MultiGameDecisionTransformer(nn.Module):
             self.rew_linear = nn.Linear(self.d_model, self.num_rewards)
 
         # Mod by Tim: Init the array
-        self._np_attn_container = np.empty((156, 156, 3, transformer_num_heads))    
+        # self._np_attn_container = np.empty((156, 156, 3, transformer_num_heads)) 
+        self._np_attn_container = np.empty((transformer_num_heads, 156, 156, 3))    
+        self._np_attn_mean = np.empty((156, 156, 3)) 
 
     #------------------------------------------
     # Mod by Tim: Retrieve attention maps
@@ -344,12 +347,12 @@ class MultiGameDecisionTransformer(nn.Module):
             # logger.info(f"  ")
              # attn = CausalSelfAttention, inherited from attn
             # visualize_attn(layer.attn._np_attn_mean, i)
-            np.put(self._np_attn_container, i, layer.attn._np_attn_mean)
-
+            # np.put(self._np_attn_container, i, layer.attn._np_attn_mean)
+            self._np_attn_container[i] = layer.attn._np_attn_mean
 
             # logger.info(f"  model.attn.__np_attn_mean_container type:{type(self._np_attn_mean_container)}")
             # logger.info(f"  model.attn.__np_attn_mean_container len:{len(self._np_attn_mean_container)}")
-            # logger.info(f"  model.attn.__np_attn_mean_container shape:{self._np_attn_mean_container.shape}")
+            # logger.info(f"  model.attn._np_attn_container shape:{self._np_attn_container.shape}")
             # if i is len(layers):
             #     logger.info(f"  i:{i} np_attn_mean_container:{self._np_attn_mean_container}")
     
@@ -635,7 +638,7 @@ class MultiGameDecisionTransformer(nn.Module):
         # --- Extract attention map(s)
         # logger.info(f"  X) Get Attention Map(s)")
         self.get_attention_map()
-        attention_layers_mean(self._np_attn_container)
+        self._np_attn_mean = attention_layers_mean(self._np_attn_container)
 
         # Generate a sample from action logits.
         act_logits = logits_fn(inputs)["action_logits"][:, timestep, :]
