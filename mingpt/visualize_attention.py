@@ -29,41 +29,11 @@ from loguru import logger
 # logger.add(sys.stdout, level="SUCCESS")
 # logger.add(sys.stdout, level="WARNING")
 
-# Main call
-def visualize_predict(model, img, img_size, patch_size, device):
-    img_pre = transform(img, img_size)
-    attention = visualize_attention(model, img_pre, patch_size, device)
-    plot_attention(img, attention)
-
-
 def transform(img, img_size):
     img = transforms.Resize(img_size)(img)
     img = transforms.ToTensor()(img)
     return img
 
-def visualize_attention(model, img, patch_size, device):
-    # make the image divisible by the patch size
-    w, h = img.shape[1] - img.shape[1] % patch_size, img.shape[2] - \
-        img.shape[2] % patch_size
-    img = img[:, :w, :h].unsqueeze(0)
-
-    w_featmap = img.shape[-2] // patch_size
-    h_featmap = img.shape[-1] // patch_size
-
-    attentions = model.get_last_selfattention(img.to(device))
-
-    nh = attentions.shape[1]  # number of head
-
-    # keep only the output patch attention
-    attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
-
-    attentions = attentions.reshape(nh, w_featmap, h_featmap)
-    attentions = nn.functional.interpolate(attentions.unsqueeze(
-        0), scale_factor=patch_size, mode="nearest")[0].cpu().numpy()
-
-    return attentions
-
-#---------------------------------------------------------------
 def convertToCV(tensor):
     tensor = torch.squeeze(tensor)
     tensor = tensor.cpu().float().detach()
@@ -79,23 +49,6 @@ def min_max(x, mins, maxs, axis=None):
     return result
 
 
-# def plot_attention(img, attention):
-    # plt.figure(figsize=(10, 10))
-    # text = ["Original Image", "Head Mean"]
-    # for i, fig in enumerate([img, np.mean(attention, 0)]):
-    #     plt.subplot(1, 2, i+1)
-    #     plt.imshow(fig, cmap='inferno')
-    #     plt.title(text[i])
-    # plt.show()
-
-    # plt.figure(figsize=(10, 10))
-    # for i in range(n_heads):
-    #     plt.subplot(n_heads//3, 3, i+1)
-    #     plt.imshow(attention[i], cmap='inferno')
-    #     plt.title(f"Head n: {i+1}")
-    # plt.tight_layout()
-    # plt.show()
-
 def visualize_attn(attention, index):
     # n_heads = attention.shape[1]
     # logger.info(f"plot_attention:: attention.shape:{attention.shape} n_heads:{n_heads} type:{type(attention)}")
@@ -103,6 +56,7 @@ def visualize_attn(attention, index):
     cv2.waitKey(500) 
     cv2.destroyAllWindows()
 
+#---------------------------------------------------------------
 
 def attention_patches_mean(attention):
     # n_heads = attention.shape[0]
@@ -178,8 +132,7 @@ def attention_patches_mean(attention):
     return np_image
 
 
-
-
+#---------------------------------------------------------------
 def attention_layers_mean(_np_attn_container):
     n_heads = _np_attn_container.shape[0]
     # logger.info(f"B4 ::attention.shape:{_np_attn_container.shape}, n_heads:{n_heads} ") # attention.shape:(156, 156, 3, 20)
@@ -221,3 +174,44 @@ def attention_layers_mean(_np_attn_container):
 
     # Returns the mean; numpy_image_array.shape:(156, 156, 1)
     return np_image
+
+
+#---------------------------------------------------------------
+def visualize_attn_heatmap(model, img, patch_size, device):
+    print(f"visualize_attention()")
+    # make the image divisible by the patch size
+    w, h = img.shape[1] - img.shape[1] % patch_size, img.shape[2] - \
+        img.shape[2] % patch_size
+    img = img[:, :w, :h].unsqueeze(0)
+    print(f"    img.shape:{img.shape}")
+
+    w_featmap = img.shape[-2] // patch_size
+    h_featmap = img.shape[-1] // patch_size
+    print(f"    w_featmap:{w_featmap} h_featmap:{h_featmap}")
+
+    attentions = model.get_last_selfattention(img.to(device))
+    nh = attentions.shape[1]  # number of head
+    print(f"    1)attentions.shape:{attentions.shape}, nh:{nh}")
+
+    # keep only the output patch attention
+    attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
+    print(f"    2)attentions.shape:{attentions.shape}")
+
+    attentions = attentions.reshape(nh, w_featmap, h_featmap)
+    attentions = nn.functional.interpolate(attentions.unsqueeze(
+        0), scale_factor=patch_size, mode="nearest")[0].cpu().numpy()
+    print(f"    3)attentions.shape:{attentions.shape}")
+
+    np_attentions = attentions.cpu().numpy()
+    visualize_attn_np(np_attentions, "np_attentions")
+
+    return attentions
+
+def visualize_attn_np(np_attention, string):
+    # n_heads = attention.shape[1]
+    np_attention = np_attention * 255.
+    np_attention = cv2.applyColorMap(np_attention.astype(np.uint8), cv2.COLORMAP_INFERNO )
+    logger.info(f"visualize_attn_np:{np_attention.shape} type:{type(np_attention)}")
+    cv2.imshow(f"{string}", np_attention)
+    cv2.waitKey(1000) 
+    cv2.destroyAllWindows()

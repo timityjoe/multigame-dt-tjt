@@ -17,7 +17,7 @@ from mingpt.multigame_dt_utils import (
     variance_scaling_,
 )
 
-from mingpt.visualize_attention import visualize_attn, attention_patches_mean, attention_layers_mean
+from mingpt.visualize_attention import visualize_attn_np, attention_patches_mean, attention_layers_mean, visualize_attn_heatmap
 
 from loguru import logger
 # logger.remove()
@@ -102,10 +102,13 @@ class Attention(nn.Module):
         # logger.info(f"B:{B} T:{T} C:{C}") # B:2 T:156 C:1280
 
         qkv = self.qkv(x).reshape(B, T, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        # logger.info(f"qkv.shape:{qkv.shape}") # qkv.shape:torch.Size([3, 2, 20, 156, 64])
+
         q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
+        # q.shape:torch.Size([2, 20, 156, 64]) k.shape:torch.Size([2, 20, 156, 64]) v.shape:torch.Size([2, 20, 156, 64])
+        # logger.info(f"q.shape:{q.shape} k.shape:{q.shape} v.shape:{q.shape}") 
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
-        # plot_attention(attn)
 
         if mask is not None:
             mask_value = -torch.finfo(attn.dtype).max  # max_neg_value
@@ -113,15 +116,13 @@ class Attention(nn.Module):
 
         attn = attn.softmax(dim=-1)
 
-        # attn len = 2
-        # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}")
+        # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}") # attn len = 2
         # logger.info(f"attn.shape:{attn.shape}") # attn.shape:torch.Size([2, 20, 156, 156])
         self._np_attn_mean = attention_patches_mean(attn)
+        # visualize_attn_np(self._np_attn_mean, "_np_attn_mean")
 
         x = (attn @ v).transpose(1, 2).reshape(B, T, C)
         x = self.proj(x)
-
-        # plot_attention(x)
 
         # x len = 2
         # logger.info(f"len(x):{len(x)}, type:{type(x)}")
@@ -153,12 +154,23 @@ class CausalSelfAttention(Attention):
             device = x.device
             causal_mask = torch.tril(torch.ones((seq_len, seq_len), dtype=torch.bool, device=device))
         causal_mask = causal_mask[None, None, :, :]
-        # logger.info(f"causal_mask.shape:{causal_mask.shape}")  #causal_mask.shape:torch.Size([1, 1, 156, 156])
+
+        # Visualize; np_causal_mask = 4x4 = 16 patches
+        # np_causal_mask = causal_mask[0].data.cpu().numpy()
+        # np_causal_mask = np.moveaxis(np_causal_mask, 0, -1)
+        # logger.info(f"np_causal_mask.shape:{np_causal_mask.shape}")  #causal_mask.shape:torch.Size([1, 1, 156, 156])
+        # visualize_attn_np(np_causal_mask, "np_causal_mask")
 
         # Similar to T5, tokens up to prefix_length can all attend to each other.
         causal_mask[:, :, :, :prefix_length] = 1
         mask = mask * causal_mask if mask is not None else causal_mask
         # logger.info(f"mask.shape:{mask.shape}")  # mask.shape:torch.Size([2, 1, 156, 156])
+
+        # Visualize; np_mask = 4x4 = 16 patches
+        # np_mask = mask[0].data.cpu().numpy()
+        # np_mask = np.moveaxis(np_mask, 0, -1)
+        # logger.info(f"np_mask.shape:{np_mask.shape}")
+        # visualize_attn_np(np_mask, "np_mask")
 
         return super().forward(x, mask)
 
@@ -356,6 +368,15 @@ class MultiGameDecisionTransformer(nn.Module):
             # if i is len(layers):
             #     logger.info(f"  i:{i} np_attn_mean_container:{self._np_attn_mean_container}")
     
+    def get_last_selfattention(self, x):
+        x = self.prepare_tokens(x)
+        for i, blk in enumerate(self.blocks):
+            if i < len(self.blocks) - 1:
+                x = blk(x)
+            else:
+                # return attention of the last block
+                return blk(x, return_attention=True)
+            
     #------------------------------------------
     def reset_parameters(self):
         nn.init.trunc_normal_(self.image_emb.weight, std=0.02)
@@ -500,7 +521,9 @@ class MultiGameDecisionTransformer(nn.Module):
             ]
             block_diag = scipy.linalg.block_diag(*diag)
             custom_causal_mask = np.logical_or(sequential_causal_mask, block_diag)
+            # logger.info(f"  (1)custom_causal_mask.shape:{custom_causal_mask.shape} ")
             custom_causal_mask = torch.tensor(custom_causal_mask, dtype=torch.bool, device=device)
+            # logger.info(f"  (2)custom_causal_mask.shape:{custom_causal_mask.shape} ")
 
         output_emb = self.transformer(token_emb, mask, custom_causal_mask)
 
@@ -533,6 +556,8 @@ class MultiGameDecisionTransformer(nn.Module):
         ret_target = encode_return(inputs["returns-to-go"], self.return_range)
         act_logits = model_outputs["action_logits"]
         ret_logits = model_outputs["return_logits"]
+        # logger.info(f"  act_logits:{act_logits.shape} ret_logits:{ret_logits.shape}")
+
         if self.single_return_token:
             ret_target = ret_target[:, :1]
             ret_logits = ret_logits[:, :1, :]
@@ -575,6 +600,12 @@ class MultiGameDecisionTransformer(nn.Module):
 
 
         obs, act, rew = inputs["observations"], inputs["actions"], inputs["rewards"]
+        # logger.info(f"obs.shape:{obs.shape} act:{act} rew:{rew}")
+        # obs.shape:torch.Size([2, 4, 1, 84, 84]) act:tensor([[1, 1, 1, 0],
+        # [0, 0, 4, 0]], device='cuda:0') rew:tensor([[0., 0., 0., 0.],
+        # [0., 0., 0., 0.]], device='cuda:0', dtype=torch.float64)
+        
+
         assert len(obs.shape) == 5
         assert len(act.shape) == 2
         inputs = {
@@ -640,6 +671,10 @@ class MultiGameDecisionTransformer(nn.Module):
         self.get_attention_map()
         self._np_attn_mean = attention_layers_mean(self._np_attn_container)
 
+        # --- Visualize Attention
+        # visualize_attn_heatmap(self, self._np_attn_mean, self.patch_size, 'cuda');
+
+
         # Generate a sample from action logits.
         act_logits = logits_fn(inputs)["action_logits"][:, timestep, :]
         act_sample = sample_from_logits(
@@ -649,7 +684,6 @@ class MultiGameDecisionTransformer(nn.Module):
             temperature=action_temperature,
             top_percentile=action_top_percentile,
         )
-
-        # logger.info(f"len(act_sample):{len(act_sample)}, type:{type(act_sample)}")
+        logger.info(f"len(act_sample):{len(act_sample)}, type:{type(act_sample)}")
 
         return act_sample
