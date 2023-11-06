@@ -180,6 +180,8 @@ class Block(nn.Module):
         super().__init__()
         self.ln_1 = nn.LayerNorm(embed_dim)
 
+        # logger.info(f" num_heads:{num_heads}") 
+
         self.attn = CausalSelfAttention(embed_dim, num_heads=num_heads, w_init_scale=init_scale)
         self.dropout_1 = nn.Dropout(dropout_rate)
 
@@ -203,7 +205,7 @@ class Transformer(nn.Module):
         num_layers: int,
         dropout_rate: float,
     ):
-        logger.info(f"Transformer:: embed_dim:{embed_dim} num_heads(d_model // 64)={num_heads} ")
+        logger.info(f"Transformer:: embed_dim:{embed_dim} num_heads(d_model // 64)={num_heads} , num_layers:{num_layers} ")
         super().__init__()
         self._num_layers = num_layers
         self._num_heads = num_heads
@@ -212,7 +214,7 @@ class Transformer(nn.Module):
         init_scale = 2.0 / self._num_layers
         self.layers = nn.ModuleList([])
         for i in range(self._num_layers):
-            logger.info(f"Creating Block {i}, num_layers:{num_layers}") 
+            logger.info(f"Creating Block {i}, num_heads:{num_heads}") 
             block = Block(embed_dim, num_heads, init_scale, dropout_rate)
             self.layers.append(block)
         self.norm_f = nn.LayerNorm(embed_dim)
@@ -291,8 +293,9 @@ class MultiGameDecisionTransformer(nn.Module):
         self.single_return_token = single_return_token
         self.spatial_tokens = True
 
-        logger.info(f"MultiGameDecisionTransformer:: 1) Create transformer") 
         transformer_num_heads = self.d_model // 64
+
+        logger.info(f"MultiGameDecisionTransformer:: 1) Create transformer - transformer_num_heads:{transformer_num_heads}") 
         self.transformer = Transformer(
             embed_dim=self.d_model,
             num_heads=self.d_model // 64,
@@ -314,7 +317,10 @@ class MultiGameDecisionTransformer(nn.Module):
 
         patch_grid = (self.img_size[0] // self.patch_size[0], self.img_size[1] // self.patch_size[1])
         num_patches = patch_grid[0] * patch_grid[1]
+
         logger.info(f"MultiGameDecisionTransformer:: 3) num_patches:{num_patches}, patch_grid[0]:{patch_grid[0]}") 
+        # MultiGameDecisionTransformer:: 3) num_patches:36, patch_grid[0]:6
+
         self.image_pos_enc = nn.Parameter(torch.randn(1, 1, num_patches, self.d_model))
 
         self.ret_emb = nn.Embedding(self.num_returns, self.d_model)
@@ -462,6 +468,11 @@ class MultiGameDecisionTransformer(nn.Module):
             # obs is [B x T x W*D]
         else:
             num_obs_tokens = 1
+
+        # logger.info(f"forward() self.spatial_tokens:{self.spatial_tokens} num_obs_tokens:{num_obs_tokens}")
+        # forward() self.spatial_tokens:True num_obs_tokens:36
+        
+
         # Collect sequence.
         # Embeddings are [B x T x D].
         if self.predict_reward:
@@ -684,6 +695,6 @@ class MultiGameDecisionTransformer(nn.Module):
             temperature=action_temperature,
             top_percentile=action_top_percentile,
         )
-        logger.info(f"len(act_sample):{len(act_sample)}, type:{type(act_sample)}")
+        # logger.info(f"len(act_sample):{len(act_sample)}, type:{type(act_sample)}")
 
         return act_sample

@@ -1,18 +1,20 @@
 # From 
 # https://medium.com/@aryanjadon/visualizing-attention-in-vision-transformer-c871908d86de
+# Explanation of hierarchy
+# 1 MGDT
+# img_size:(84, 84) patch_size:(14, 14) num_actions:18 num_rewards:4 return_range:[-20, 100]
+# d_model:1280 num_layers:10 dropout_rate:0.1 conv_dim:256
+#
+# 1 MGDT has 1 transformer, and each transformer has:
+#       - 10 layers/block, each layers/block has:
+#               - 1 CausalSelfAttention, each block has:
+#                       - 20 attention heads 
+#                       -
 
-# import os
-# import torch
+
 import numpy as np
-# import math
-# from functools import partial
 import torch
 import torch.nn as nn
-# import tensorflow as tf
-
-# import ipywidgets as widgets
-# import io
-# from PIL import Image
 from torchvision import transforms
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,7 +44,6 @@ def convertToCV(tensor):
     tensor = ((tensor +1)/2.0) * 255.0
     tensor = tensor.numpy()
     return tensor
-
 
 def min_max(x, mins, maxs, axis=None):
     result = (x - mins)/(maxs - mins)
@@ -138,14 +139,14 @@ def attention_layers_mean(_np_attn_container):
     # logger.info(f"B4 ::attention.shape:{_np_attn_container.shape}, n_heads:{n_heads} ") # attention.shape:(156, 156, 3, 20)
 
     # View individual (of the 20) patches
-    # for i in range(0, n_heads):
-    #     attn = _np_attn_container[i]     
-    #     max_len = attn.max(axis=None, keepdims=True)
-    #     min_len = attn.min(axis=None, keepdims=True)
-    #     logger.info(f"  max_len:{max_len} min_len:{min_len}")
-    #     logger.info(f"  attn.shape:{attn.shape} ")        
-    #     cv2.imshow(f"attn_{i}", attn)
-    #     cv2.waitKey(500) 
+    for i in range(0, n_heads):
+        attn = _np_attn_container[i]     
+        max_len = attn.max(axis=None, keepdims=True)
+        min_len = attn.min(axis=None, keepdims=True)
+        logger.info(f"  max_len:{max_len} min_len:{min_len}")
+        logger.info(f"  attn.shape:{attn.shape} ")        
+        cv2.imshow(f"attn_{i}", attn)
+        cv2.waitKey(500) 
 
 
     np_image = np.mean(_np_attn_container, axis=0)
