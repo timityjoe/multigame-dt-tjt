@@ -13,7 +13,8 @@ from loguru import logger
 
 
 # --- Evaluate model
-def batch_rollout1(device, envs, policy_fn, num_episodes, log_interval=None):
+#                  3rd parameter policy_fn = optimal_action_fn
+def batch_rollout1(device, envs, model, policy_fn, num_episodes, log_interval=None):
     r"""Roll out a batch of environments under a given policy function."""
     num_batch = len(envs)
     num_steps = envs[0].spec.max_episode_steps
@@ -57,6 +58,10 @@ def batch_rollout1(device, envs, policy_fn, num_episodes, log_interval=None):
 
             # Collect step results and stack as a batch.
             step_results = [env.step(act) for env, act in zip(envs, actions.cpu().numpy())]
+
+            np_rgb_img = envs[0].get_game_image()
+            model.update_game_image(np_rgb_img)
+
             obs_list = [result[0] for result in step_results]
             obs = {k: np.stack([obs[k] for obs in obs_list], axis=0) for k in obs_list[0]}
             rew = np.stack([result[1] for result in step_results])

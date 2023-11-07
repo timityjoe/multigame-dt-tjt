@@ -20,7 +20,7 @@
 # import torch
 import numpy as np
 # import math
-# import torch
+import torch
 import torch.nn as nn
 
 # import ipywidgets as widgets
@@ -35,21 +35,32 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def transform(img, img_size):
+def transform(np_img, img_size):
+    # img = transforms.Resize(img_size)(np_img)
+    # img = transforms.ToTensor()(img)
+    # np_img = np.reshape(np_img, (0, -1))
+    # np_img = np.resize(np_img, img_size)
+    img = torch.from_numpy(np_img) 
+    img = torch.transpose(img, 0, -1)
     img = transforms.Resize(img_size)(img)
-    img = transforms.ToTensor()(img)
     return img
 
-def visualize_predict(model, img, img_size, patch_size, device):
+def visualize_predict(model, np_img, img_size, patch_size, device):
     print(f"visualize_predict()")
-    img_pre = transform(img, img_size)
-    attention = visualize_attention(model, img_pre, patch_size, device)
+    print(f"    np_img.shape:{np_img.shape}, img_size:{img_size}, patch_size:{patch_size}")
+    img_pre = transform(np_img, img_size)
+
+    attention = visualize_attention(model, img_pre, patch_size[0], device)
+    # attention = visualize_attention(model, np_img, patch_size, device)
+
     print(f"    attention.shape:{attention.shape}")
     # plot_attention(img, attention)
 
 
 def visualize_attention(model, img, patch_size, device):
-    print(f"visualize_attention() patch_size:{patch_size}, device:{device}")
+    print(f"visualize_attention()")
+    print(f"    img.shape:{img.shape}, patch_size:{patch_size}, device:{device}")
+
     # make the image divisible by the patch size
     w, h = img.shape[1] - img.shape[1] % patch_size, img.shape[2] - \
         img.shape[2] % patch_size

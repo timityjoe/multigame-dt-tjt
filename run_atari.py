@@ -160,6 +160,7 @@ optimal_action_fn = functools.partial(
     return_temperature=0.75,
     action_top_percentile=50,
     return_top_percentile=None,
+    torch_device = device
 )
 
 # --- Extract attention map(s)
@@ -170,7 +171,7 @@ optimal_action_fn = functools.partial(
 # --- Calculate Results
 logger.info(f"6) Calculate Results")
 task_results = {}
-task_results["rew_sum"] = batch_rollout1(device, envs, optimal_action_fn, num_episodes=16, log_interval=100)
+task_results["rew_sum"] = batch_rollout1(device, envs, model, optimal_action_fn, num_episodes=16, log_interval=100)
 [env.close() for env in envs]
 
 # --- Log metrics
