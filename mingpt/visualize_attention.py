@@ -101,9 +101,7 @@ def attention_patches_mean(attention):
         # numpy_image_array = np.stack((numpy_image_array, numpy_image),axis=2)
         # logger.info(f"  numpy_image.shape      :{numpy_image.shape} ")
         # logger.info(f"  numpy_image_array.shape:{numpy_image_array.shape} ")
-
         # cv2.imshow(f"attn_head_{i}", numpy_image)
-        # cv2.imshow(f"attn_head", numpy_image)
         # cv2.waitKey(500) 
 
     # View singular mean (of the 20) patches
@@ -139,14 +137,14 @@ def attention_layers_mean(_np_attn_container):
     # logger.info(f"B4 ::attention.shape:{_np_attn_container.shape}, n_heads:{n_heads} ") # attention.shape:(156, 156, 3, 20)
 
     # View individual (of the 20) patches
-    for i in range(0, n_heads):
-        attn = _np_attn_container[i]     
-        max_len = attn.max(axis=None, keepdims=True)
-        min_len = attn.min(axis=None, keepdims=True)
-        logger.info(f"  max_len:{max_len} min_len:{min_len}")
-        logger.info(f"  attn.shape:{attn.shape} ")        
-        cv2.imshow(f"attn_{i}", attn)
-        cv2.waitKey(500) 
+    # for i in range(0, n_heads):
+    #     attn = _np_attn_container[i]     
+    #     max_len = attn.max(axis=None, keepdims=True)
+    #     min_len = attn.min(axis=None, keepdims=True)
+    #     logger.info(f"  max_len:{max_len} min_len:{min_len}")
+    #     logger.info(f"  attn.shape:{attn.shape} ")        
+    #     cv2.imshow(f"attn_{i}", attn)
+    #     cv2.waitKey(500) 
 
 
     np_image = np.mean(_np_attn_container, axis=0)
