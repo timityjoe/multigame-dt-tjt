@@ -18,12 +18,33 @@ from mingpt.multigame_dt_utils import (
 )
 
 from mingpt.visualize_attention import visualize_attn_np, attention_patches_mean, attention_layers_mean, visualize_attn_heatmap
+from mingpt.visualize_attention2 import visualize_predict
 
 from loguru import logger
 # logger.remove()
 # logger.add(sys.stdout, level="INFO")
 # logger.add(sys.stdout, level="SUCCESS")
 # logger.add(sys.stdout, level="WARNING")
+
+#------------------------------------------------
+class PatchEmbed(nn.Module):
+    """ Image to Patch Embedding
+    """
+
+    def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768):
+        super().__init__()
+        num_patches = (img_size // patch_size) * (img_size // patch_size)
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.num_patches = num_patches
+
+        self.proj = nn.Conv2d(in_chans, embed_dim,
+                              kernel_size=patch_size, stride=patch_size)
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        x = self.proj(x).flatten(2).transpose(1, 2)
+        return x
 
 #------------------------------------------------
 class MLP(nn.Module):
@@ -256,6 +277,7 @@ class Transformer(nn.Module):
 class MultiGameDecisionTransformer(nn.Module):
     _np_attn_container = None
     _np_attn_mean = None
+    _np_rgb_img = None
 
     def __init__(
         self,
@@ -314,11 +336,12 @@ class MultiGameDecisionTransformer(nn.Module):
             stride=(patch_height, patch_width),
             padding="valid",
         )  # image_emb is now [BT x D x P x P].
+        logger.info(f"    type(self.image_emb):{type(self.image_emb)}")
 
         patch_grid = (self.img_size[0] // self.patch_size[0], self.img_size[1] // self.patch_size[1])
         num_patches = patch_grid[0] * patch_grid[1]
 
-        logger.info(f"MultiGameDecisionTransformer:: 3) num_patches:{num_patches}, patch_grid[0]:{patch_grid[0]}") 
+        logger.info(f"MultiGameDecisionTransformer:: 3) num_patches:{num_patches}, patch_grid[0]:{patch_grid[0]}, patch_grid[1]:{patch_grid[1]}") 
         # MultiGameDecisionTransformer:: 3) num_patches:36, patch_grid[0]:6
 
         self.image_pos_enc = nn.Parameter(torch.randn(1, 1, num_patches, self.d_model))
@@ -375,15 +398,70 @@ class MultiGameDecisionTransformer(nn.Module):
             #     logger.info(f"  i:{i} np_attn_mean_container:{self._np_attn_mean_container}")
     
     def get_last_selfattention(self, x):
-        x = self.prepare_tokens(x)
-        for i, blk in enumerate(self.blocks):
-            if i < len(self.blocks) - 1:
-                x = blk(x)
+        # x = self.prepare_tokens(x)
+        # for i, blk in enumerate(self.blocks):
+        for i, blk in enumerate(self.transformer.layers):
+            if i < len(self.transformer.layers) - 1:
+                # x = blk(x)
             else:
                 # return attention of the last block
-                return blk(x, return_attention=True)
+                # return blk(x, return_attention=True)
+                return self.transformer.layers
+
+    def interpolate_pos_encoding(self, x, w, h):
+        npatch = x.shape[1] - 1
+        N = self.pos_embed.shape[1] - 1
+        if npatch == N and w == h:
+            return self.pos_embed
+        class_pos_embed = self.pos_embed[:, 0]
+        patch_pos_embed = self.pos_embed[:, 1:]
+        dim = x.shape[-1]
+        w0 = w // self.patch_embed.patch_size
+        h0 = h // self.patch_embed.patch_size
+        # we add a small number to avoid floating point error in the interpolation
+        # see discussion at https://github.com/facebookresearch/dino/issues/8
+        w0, h0 = w0 + 0.1, h0 + 0.1
+        patch_pos_embed = nn.functional.interpolate(
+            patch_pos_embed.reshape(1, int(math.sqrt(N)), int(
+                math.sqrt(N)), dim).permute(0, 3, 1, 2),
+            scale_factor=(w0 / math.sqrt(N), h0 / math.sqrt(N)),
+            mode='bicubic',
+        )
+        assert int(
+            w0) == patch_pos_embed.shape[-2] and int(h0) == patch_pos_embed.shape[-1]
+        patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
+        return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1)     
+
+    
+    def prepare_tokens(self, x):
+        B, nc, w, h = x.shape
+        print(f"prepare_tokens - x:{x.shape}, B:{B}, nc:{nc}, w:{w}, h:{h}")
+
+        # x = self.patch_embed(x)  # patch linear embedding
+        # x = self.image_emb(x)  # patch linear embedding
+        # print(f"    (1)x:{x.shape}")
+
+        # add the [CLS] token to the embed patch tokens
+        # cls_tokens = self.cls_token.expand(B, -1, -1)
+        # print(f"    cls_tokens.shape:{cls_tokens.shape}")
+        # x = torch.cat((cls_tokens, x), dim=1)
+        # print(f"    (2)x:{x.shape}")
+
+        # add positional encoding to each token
+        # x = x + self.interpolate_pos_encoding(x, w, h)
+        # print(f"    (3)x:{x.shape}")
+
+        # value = self.pos_drop(x)
+        # print(f"    self.pos_drop(x).shape:{value.shape}")
+        return x
             
+
+    def update_game_image(self, img):
+        self._np_rgb_img = img
+
+
     #------------------------------------------
+
     def reset_parameters(self):
         nn.init.trunc_normal_(self.image_emb.weight, std=0.02)
         nn.init.zeros_(self.image_emb.bias)
@@ -604,6 +682,7 @@ class MultiGameDecisionTransformer(nn.Module):
         return_top_percentile: Optional[float] = None,
         rng: Optional[torch.Generator] = None,
         deterministic: bool = False,
+        torch_device: torch.device = None
     ):
         r"""Calculate optimal action for the given sequence model."""
         logits_fn = self.forward
@@ -683,7 +762,8 @@ class MultiGameDecisionTransformer(nn.Module):
         self._np_attn_mean = attention_layers_mean(self._np_attn_container)
 
         # --- Visualize Attention
-        # visualize_attn_heatmap(self, self._np_attn_mean, self.patch_size, 'cuda');
+        if self._np_rgb_img is not None:
+            visualize_predict(self, self._np_rgb_img, self.img_size, self.patch_size, torch_device)
 
 
         # Generate a sample from action logits.
