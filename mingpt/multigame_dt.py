@@ -5,6 +5,7 @@ import scipy
 import torch
 import torch.nn as nn
 from torch import Tensor
+import cv2
 
 from mingpt.multigame_dt_utils import (
     accuracy,
@@ -140,14 +141,35 @@ class Attention(nn.Module):
         # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}") # attn len = 2
         # logger.info(f"attn.shape:{attn.shape}") # attn.shape:torch.Size([2, 20, 156, 156])
         self._np_attn_mean = attention_patches_mean(attn)
+        logger.info(f"  _np_attn_mean.shape:{self._np_attn_mean.shape}") # _np_attn_mean.shape:(156, 156, 3)
         # visualize_attn_np(self._np_attn_mean, "_np_attn_mean")
 
         x = (attn @ v).transpose(1, 2).reshape(B, T, C)
+        # logger.info(f"  (1)x.shape:{x.shape}") # x.shape:torch.Size([2, 156, 1280])
         x = self.proj(x)
+        # logger.info(f"  (2)x.shape:{x.shape}") # x.shape:torch.Size([2, 156, 1280])
+
+        #---------------------------
+        # Mod by Tim: 
+        x1 = (q @ k.transpose(-2, -1)) * self.scale
+        x1 = x1.softmax(dim=-1)
+        # x1 = x1         # x1.shape:torch.Size([2, 20, 156, 156])
+        # x1 = x1[0]      # x1.shape:torch.Size([20, 156, 156])
+        # x1 = x1[0][0]      # x1.shape:torch.Size([156, 156])
+        logger.info(f"  (3)x1.shape:{x1.shape}") # 
+
+        np_x1 = x1.detach().cpu().numpy()
+        np_x1 = np.mean(np_x1, axis=0)
+        np_x1 = np.mean(np_x1, axis=0)
+        np_x1 = np_x1 * 255.
+        np_x1 = cv2.applyColorMap(np_x1.astype(np.uint8), cv2.COLORMAP_INFERNO )
+        logger.info(f"np_x1.shape:{np_x1.shape}") # x1.shape:torch.Size([2, 20, 156, 156])
+        visualize_attn_np(np_x1, "np_x")
+        #---------------------------
 
         # x len = 2
         # logger.info(f"len(x):{len(x)}, type:{type(x)}")
-        # logger.info(f"x.shape:{x.shape}") # x.shape:torch.Size([2, 156, 1280])
+
 
         return x
 
@@ -403,10 +425,15 @@ class MultiGameDecisionTransformer(nn.Module):
         for i, blk in enumerate(self.transformer.layers):
             if i < len(self.transformer.layers) - 1:
                 # x = blk(x)
+                pass
             else:
                 # return attention of the last block
                 # return blk(x, return_attention=True)
-                return self.transformer.layers
+                value =  self.transformer.layers[i].attn
+                # value = blk._attn
+                logger.info(f"get_last_selfattention() - type:{type(value)}")
+                logger.info(f"get_last_selfattention() - shape:{value.shape}")
+                return value
 
     def interpolate_pos_encoding(self, x, w, h):
         npatch = x.shape[1] - 1
@@ -458,6 +485,12 @@ class MultiGameDecisionTransformer(nn.Module):
 
     def update_game_image(self, img):
         self._np_rgb_img = img
+        # self._np_rgb_img = self._np_rgb_img * 255.
+        # self._np_rgb_img = cv2.applyColorMap(self._np_rgb_img.astype(np.uint8), cv2.COLORMAP_INFERNO )
+        # # logger.info(f"type:{type(self._np_rgb_img)}")
+        # cv2.imshow(f"_np_rgb_img", self._np_rgb_img)
+        # cv2.waitKey(100) 
+        # cv2.destroyAllWindows()
 
 
     #------------------------------------------
@@ -762,8 +795,8 @@ class MultiGameDecisionTransformer(nn.Module):
         self._np_attn_mean = attention_layers_mean(self._np_attn_container)
 
         # --- Visualize Attention
-        if self._np_rgb_img is not None:
-            visualize_predict(self, self._np_rgb_img, self.img_size, self.patch_size, torch_device)
+        # if self._np_rgb_img is not None:
+            # visualize_predict(self, self._np_rgb_img, self.img_size, self.patch_size, torch_device)
 
 
         # Generate a sample from action logits.
