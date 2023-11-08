@@ -18,7 +18,7 @@ from mingpt.multigame_dt_utils import (
     variance_scaling_,
 )
 
-from mingpt.visualize_attention import visualize_attn_np, attention_patches_mean, attention_layers_mean, visualize_attn_heatmap
+from mingpt.visualize_attention import visualize_attn_np, attention_patches_mean, attention_layers_mean, visualize_attn_heatmap, visualize_attn_tensor
 from mingpt.visualize_attention2 import visualize_predict
 
 from loguru import logger
@@ -153,18 +153,18 @@ class Attention(nn.Module):
         # Mod by Tim: 
         x1 = (q @ k.transpose(-2, -1)) * self.scale
         x1 = x1.softmax(dim=-1)
+        np_x1 = x1.detach().cpu().numpy()
         # x1 = x1         # x1.shape:torch.Size([2, 20, 156, 156])
         # x1 = x1[0]      # x1.shape:torch.Size([20, 156, 156])
-        # x1 = x1[0][0]      # x1.shape:torch.Size([156, 156])
+        np_x1 = np_x1[0][0]      # x1.shape:torch.Size([156, 156])
         # logger.info(f"  (3)x1.shape:{x1.shape}") # 
 
-        np_x1 = x1.detach().cpu().numpy()
-        np_x1 = np.mean(np_x1, axis=0)
-        np_x1 = np.mean(np_x1, axis=0)
+        # np_x1 = np.mean(np_x1, axis=0)
+        # np_x1 = np.mean(np_x1, axis=0)
         np_x1 = np_x1 * 255.
         np_x1 = cv2.applyColorMap(np_x1.astype(np.uint8), cv2.COLORMAP_INFERNO )
         # logger.info(f"np_x1.shape:{np_x1.shape}") # x1.shape:torch.Size([2, 20, 156, 156])
-        # visualize_attn_np(np_x1, "np_x")
+        visualize_attn_np(np_x1, "np_x")
         #---------------------------
 
         # x len = 2
@@ -525,31 +525,39 @@ class MultiGameDecisionTransformer(nn.Module):
             Image embedding of shape [B x T x output_dim] or [B x T x _ x output_dim].
         """
         assert len(image.shape) == 5
+        # logger.info(f"_image_embedding() - image:{image.shape}")  # image:torch.Size([2, 4, 1, 84, 84])
 
         image_dims = image.shape[-3:]
         batch_dims = image.shape[:2]
 
+        # Mod by Tim: Visualize the incoming images patches (84 x 84). These seem to be the 
+        # B = Batch of num_envs
+        # T = 4 per env
+        # C - Color channel (1)
+        # np_image = image.cpu().numpy()
+        # np_image = np.mean(np_image, axis=0)
+        # np_image = np.mean(np_image, axis=0)
+        # visualize_attn_tensor(torch.from_numpy(np_image))
+
         # Reshape to [BT x C x H x W].
         image = torch.reshape(image, (-1,) + image_dims) # image:torch.Size([8, 1, 84, 84])
-        
-        # Mod by Tim:
-        # np_image = image[0]
-        # np_image = np_image.cpu().numpy()
-        # np_image = np.swapaxes(np_image, 0, 2)
-        # # image = cv2.applyColorMap(image.astype(np.uint8), cv2.COLORMAP_INFERNO )
-        # logger.info(f"_image_embedding() - np_image:{np_image.shape}") # image:torch.Size([8, 1, 84, 84])
-        # visualize_attn_np(np_image, "np_image")
+        # np_image = image.cpu().numpy()
+        # np_image = np.mean(np_image, axis=0)
+        # visualize_attn_tensor(torch.from_numpy(np_image))
 
         # Perform any-image specific processing.
         image = image.to(dtype=torch.float32) / 255.0
 
-        image_emb = self.image_emb(image)  # [BT x D x P x P]
+        image_emb = self.image_emb(image)  # [BT x D x P x P] # image_emb:torch.Size([4, 1280, 6, 6])  
+
         # haiku.Conv2D is channel-last, so permute before reshape below for consistency
-        image_emb = image_emb.permute(0, 2, 3, 1)  # [BT x P x P x D]
+        image_emb = image_emb.permute(0, 2, 3, 1)  # [BT x P x P x D] # image_emb:torch.Size([4, 6, 6, 1280])
+        
 
         # Reshape to [B x T x P*P x D].
         image_emb = torch.reshape(image_emb, batch_dims + (-1, self.d_model))
-        image_emb = image_emb + self.image_pos_enc
+        image_emb = image_emb + self.image_pos_enc  # image_emb:torch.Size([1, 4, 36, 1280])
+
         return image_emb
 
     def _embed_inputs(self, obs: Tensor, ret: Tensor, act: Tensor, rew: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
@@ -624,9 +632,13 @@ class MultiGameDecisionTransformer(nn.Module):
             mask = [obs_mask, ret_mask, act_mask, rew_mask]
         else:
             mask = [obs_mask, ret_mask, act_mask]
-        mask = np.concatenate(mask, axis=-1)
+
+        mask = np.concatenate(mask, axis=-1)    
+        # logger.info(f"  mask:{mask.shape}") # mask:(1, 4, 39)
+
         mask = np.reshape(mask, [batch_size, tokens_per_step * num_steps])
         mask = torch.tensor(mask, dtype=torch.bool, device=device)
+        # logger.info(f"  mask:{mask.shape}")     # mask:torch.Size([1, 156])
 
         custom_causal_mask = None
         if self.spatial_tokens:
@@ -654,12 +666,16 @@ class MultiGameDecisionTransformer(nn.Module):
                 for i in range(num_timesteps * 2)
             ]
             block_diag = scipy.linalg.block_diag(*diag)
+            # logger.info(f"  block_diag:{block_diag.shape} ")     # block_diag:(156, 156) 
+
             custom_causal_mask = np.logical_or(sequential_causal_mask, block_diag)
-            # logger.info(f"  (1)custom_causal_mask.shape:{custom_causal_mask.shape} ")
+            # logger.info(f"  (1)custom_causal_mask.shape:{custom_causal_mask.shape} ")    # custom_causal_mask.shape:(156, 156)
             custom_causal_mask = torch.tensor(custom_causal_mask, dtype=torch.bool, device=device)
-            # logger.info(f"  (2)custom_causal_mask.shape:{custom_causal_mask.shape} ")
+            # logger.info(f"  (2)custom_causal_mask.shape:{custom_causal_mask.shape} ")   # custom_causal_mask.shape:torch.Size([156, 156]) 
+
 
         output_emb = self.transformer(token_emb, mask, custom_causal_mask)
+        # logger.info(f"  output_emb:{output_emb.shape} ")    # output_emb:torch.Size([1, 156, 1280]) 
 
         # Output_embeddings are [B x 3T x D].
         # Next token predictions (tokens one before their actual place).
