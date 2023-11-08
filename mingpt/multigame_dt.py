@@ -141,7 +141,7 @@ class Attention(nn.Module):
         # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}") # attn len = 2
         # logger.info(f"attn.shape:{attn.shape}") # attn.shape:torch.Size([2, 20, 156, 156])
         self._np_attn_mean = attention_patches_mean(attn)
-        logger.info(f"  _np_attn_mean.shape:{self._np_attn_mean.shape}") # _np_attn_mean.shape:(156, 156, 3)
+        # logger.info(f"  _np_attn_mean.shape:{self._np_attn_mean.shape}") # _np_attn_mean.shape:(156, 156, 3)
         # visualize_attn_np(self._np_attn_mean, "_np_attn_mean")
 
         x = (attn @ v).transpose(1, 2).reshape(B, T, C)
@@ -156,15 +156,15 @@ class Attention(nn.Module):
         # x1 = x1         # x1.shape:torch.Size([2, 20, 156, 156])
         # x1 = x1[0]      # x1.shape:torch.Size([20, 156, 156])
         # x1 = x1[0][0]      # x1.shape:torch.Size([156, 156])
-        logger.info(f"  (3)x1.shape:{x1.shape}") # 
+        # logger.info(f"  (3)x1.shape:{x1.shape}") # 
 
         np_x1 = x1.detach().cpu().numpy()
         np_x1 = np.mean(np_x1, axis=0)
         np_x1 = np.mean(np_x1, axis=0)
         np_x1 = np_x1 * 255.
         np_x1 = cv2.applyColorMap(np_x1.astype(np.uint8), cv2.COLORMAP_INFERNO )
-        logger.info(f"np_x1.shape:{np_x1.shape}") # x1.shape:torch.Size([2, 20, 156, 156])
-        visualize_attn_np(np_x1, "np_x")
+        # logger.info(f"np_x1.shape:{np_x1.shape}") # x1.shape:torch.Size([2, 20, 156, 156])
+        # visualize_attn_np(np_x1, "np_x")
         #---------------------------
 
         # x len = 2
@@ -364,7 +364,7 @@ class MultiGameDecisionTransformer(nn.Module):
         num_patches = patch_grid[0] * patch_grid[1]
 
         logger.info(f"MultiGameDecisionTransformer:: 3) num_patches:{num_patches}, patch_grid[0]:{patch_grid[0]}, patch_grid[1]:{patch_grid[1]}") 
-        # MultiGameDecisionTransformer:: 3) num_patches:36, patch_grid[0]:6
+        # MultiGameDecisionTransformer:: 3) num_patches:36, patch_grid[0]:6, patch_grid[1]:6
 
         self.image_pos_enc = nn.Parameter(torch.randn(1, 1, num_patches, self.d_model))
 
@@ -530,7 +530,16 @@ class MultiGameDecisionTransformer(nn.Module):
         batch_dims = image.shape[:2]
 
         # Reshape to [BT x C x H x W].
-        image = torch.reshape(image, (-1,) + image_dims)
+        image = torch.reshape(image, (-1,) + image_dims) # image:torch.Size([8, 1, 84, 84])
+        
+        # Mod by Tim:
+        # np_image = image[0]
+        # np_image = np_image.cpu().numpy()
+        # np_image = np.swapaxes(np_image, 0, 2)
+        # # image = cv2.applyColorMap(image.astype(np.uint8), cv2.COLORMAP_INFERNO )
+        # logger.info(f"_image_embedding() - np_image:{np_image.shape}") # image:torch.Size([8, 1, 84, 84])
+        # visualize_attn_np(np_image, "np_image")
+
         # Perform any-image specific processing.
         image = image.to(dtype=torch.float32) / 255.0
 
@@ -562,7 +571,8 @@ class MultiGameDecisionTransformer(nn.Module):
     def forward(self, inputs: Mapping[str, Tensor]) -> Mapping[str, Tensor]:
         r"""Process sequence."""
         num_batch = inputs["actions"].shape[0]
-        num_steps = inputs["actions"].shape[1]
+        num_steps = inputs["actions"].shape[1] 
+
         # Embed inputs.
         obs_emb, ret_emb, act_emb, rew_emb = self._embed_inputs(
             inputs["observations"],
@@ -571,6 +581,8 @@ class MultiGameDecisionTransformer(nn.Module):
             inputs["rewards"],
         )
         device = obs_emb.device
+
+        # logger.info(f"forward() - obs_emb:{obs_emb.shape}")   # obs_emb:torch.Size([2, 4, 36, 1280])
 
         if self.spatial_tokens:
             # obs is [B x T x W x D]
