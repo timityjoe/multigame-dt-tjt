@@ -49,12 +49,23 @@ def min_max(x, mins, maxs, axis=None):
     result = (x - mins)/(maxs - mins)
     return result
 
+# Form of [C x H x W]
+def visualize_attn_tensor(image, string):    
+    np_image = image.cpu().numpy()
+    # Change to [W x H x C]
+    np_image = np.swapaxes(np_image, 0, 2)
+    # Change to [H x W x C]
+    np_image = np.swapaxes(np_image, 0, 1)
+    np_image = cv2.applyColorMap(np_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
+    visualize_attn_np(np_image, string)
 
-def visualize_attn(attention, index):
+def visualize_attn_np(np_attention, string):
     # n_heads = attention.shape[1]
-    # logger.info(f"plot_attention:: attention.shape:{attention.shape} n_heads:{n_heads} type:{type(attention)}")
-    cv2.imshow(f"attn layer{index}", attention)
-    cv2.waitKey(500) 
+    np_attention = np_attention * 255.
+    np_attention = cv2.applyColorMap(np_attention.astype(np.uint8), cv2.COLORMAP_INFERNO )
+    logger.info(f"visualize_attn_np:{np_attention.shape} type:{type(np_attention)}")
+    cv2.imshow(f"{string}", np_attention)
+    cv2.waitKey(1000) 
     cv2.destroyAllWindows()
 
 #---------------------------------------------------------------
@@ -205,12 +216,3 @@ def visualize_attn_heatmap(model, img, patch_size, device):
     visualize_attn_np(np_attentions, "np_attentions")
 
     return attentions
-
-def visualize_attn_np(np_attention, string):
-    # n_heads = attention.shape[1]
-    np_attention = np_attention * 255.
-    np_attention = cv2.applyColorMap(np_attention.astype(np.uint8), cv2.COLORMAP_INFERNO )
-    logger.info(f"visualize_attn_np:{np_attention.shape} type:{type(np_attention)}")
-    cv2.imshow(f"{string}", np_attention)
-    cv2.waitKey(1000) 
-    cv2.destroyAllWindows()

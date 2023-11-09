@@ -96,7 +96,7 @@ def create_env(env_name, env_id, sticky_actions=False, noop_max=30, terminal_on_
 
 env_name = "Breakout"
 # num_envs = 8
-num_envs = 2
+num_envs = 1
 # env_fn = lambda: create_env(env_name)
 # envs = [env_fn() for _ in range(num_envs)]
 
