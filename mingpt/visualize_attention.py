@@ -63,7 +63,7 @@ def visualize_attn_np(np_attention, string):
     # n_heads = attention.shape[1]
     np_attention = np_attention * 255.
     np_attention = cv2.applyColorMap(np_attention.astype(np.uint8), cv2.COLORMAP_INFERNO )
-    logger.info(f"visualize_attn_np:{np_attention.shape} type:{type(np_attention)}")
+    # logger.info(f"visualize_attn_np:{np_attention.shape} type:{type(np_attention)}")
     cv2.imshow(f"{string}", np_attention)
     cv2.waitKey(1000) 
     cv2.destroyAllWindows()
