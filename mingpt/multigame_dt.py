@@ -578,8 +578,19 @@ class MultiGameDecisionTransformer(nn.Module):
 
     def forward(self, inputs: Mapping[str, Tensor]) -> Mapping[str, Tensor]:
         r"""Process sequence."""
+        logger.info(f"forward() - inputs:{inputs}")
+
         num_batch = inputs["actions"].shape[0]
         num_steps = inputs["actions"].shape[1] 
+        # input_actions = inputs["actions"]
+        # logger.info(f"forward() - input_actions:{input_actions.shape}")               # input_actions:torch.Size([1, 4])
+        # input_observations = inputs["observations"]
+        # logger.info(f"forward() - input_observations:{input_observations.shape}")     # input_observations:torch.Size([1, 4, 1, 84, 84])
+        # input_RTG = inputs["returns-to-go"]
+        # logger.info(f"  input_RTG:{input_RTG.shape}")                                 # input_RTG:torch.Size([1, 4])
+        # input_rewards = inputs["rewards"]
+        # logger.info(f"  input_rewards:{input_rewards.shape}")                         # input_rewards:torch.Size([1, 4])
+
 
         # Embed inputs.
         obs_emb, ret_emb, act_emb, rew_emb = self._embed_inputs(
@@ -634,9 +645,12 @@ class MultiGameDecisionTransformer(nn.Module):
             mask = [obs_mask, ret_mask, act_mask]
 
         mask = np.concatenate(mask, axis=-1)    
-        # logger.info(f"  mask:{mask.shape}") # mask:(1, 4, 39)
+        # logger.info(f"  (1)mask:{mask.shape}") # mask:(1, 4, 39)
 
         mask = np.reshape(mask, [batch_size, tokens_per_step * num_steps])
+        # mask:(1, 156), batch_size:1, tokens_per_step:39, num_steps:4
+        # logger.info(f"  (2)mask:{mask.shape}, batch_size:{batch_size}, tokens_per_step:{tokens_per_step}, num_steps:{num_steps}") # 
+
         mask = torch.tensor(mask, dtype=torch.bool, device=device)
         # logger.info(f"  mask:{mask.shape}")     # mask:torch.Size([1, 156])
 
