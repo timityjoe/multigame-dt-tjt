@@ -212,13 +212,22 @@ class Attention(nn.Module):
             for (i, iter) in enumerate(x1[0]):
                 copy = iter 
                 if (i == 19):
+                    # logger.info(f"np_x1.shape:{np_x1.shape}") # np_x1.shape:(156, 156, 3)
+                    # (tps)tokens_per_step = 39
+                    # (T)num_steps = 4
+
+                    # Reorder [T*tps, T*tps, C] into [T*T, tps, tps, C]
                     copy = torch.reshape(copy, [16, 39, 39])
-                    # View the last (15)
-                    # copy = copy[15]
-                    copy = copy[render_attn_head_id]
-                    # copy = np.swapaxes(copy, 0, 1)
-                    copy = torch.nn.functional.interpolate(copy.unsqueeze(0).unsqueeze(0), [210, 160], mode='bilinear').view(210, 160, 1)
+                    # View the last (15). Adjust in L406
+                    copy = copy[render_attn_head_id]    
+                    copy = np.swapaxes(copy, 0, 1)
+
+
+                    # copy = torch.nn.functional.interpolate(copy.unsqueeze(0).unsqueeze(0), [210, 160], mode='bilinear').view(210, 160, 1)
+                    copy = torch.nn.functional.interpolate(copy.unsqueeze(0).unsqueeze(0), [210, 160], mode="nearest").view(210, 160, 1)
+
                     np_copy = copy.cuda().detach().cpu().clone().numpy()
+                    np_copy = np_copy / 10.
                     np_copy = cv2.applyColorMap(np_copy.astype(np.uint8), cv2.COLORMAP_INFERNO )
                     # logger.info(f"  np_copy.shape:{np_copy.shape}")     # np_copy.shape:(39, 39, 3)
                     self._np_attn_heatmap = np_copy
@@ -395,7 +404,7 @@ class Transformer(nn.Module):
         # logger.info(f"forward() - h.shape:{h.shape}")   # h.shape:torch.Size([1, 156, 1280])
 
         self._render_layer_id = 9          # 0-9
-        self._render_attn_head_id = 0     # 0-15 (4x4). See L211
+        self._render_attn_head_id = 15     # 0-15 (4x4). See L211
         for i, block in enumerate(self.layers):   # Block.forward(2) called here
             h = block(
                 x=h,
