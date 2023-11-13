@@ -18,7 +18,7 @@ from mingpt.multigame_dt_utils import (
     variance_scaling_,
 )
 
-from mingpt.visualize_attention import visualize_attn_np, attention_patches_mean, attention_layers_mean, visualize_attn_heatmap, visualize_attn_tensor
+from mingpt.visualize_attention import visualize_attn_np, attention_patches_mean, attention_layers_mean, visualize_attn_heatmap, visualize_attn_tensor, visualize_attn_tensor_detach
 from mingpt.visualize_attention2 import visualize_predict
 
 from loguru import logger
@@ -88,6 +88,7 @@ class MLP(nn.Module):
 #------------------------------------------------
 class Attention(nn.Module):
     _np_attn_mean = None
+    _np_attn_heatmap = None
 
     def __init__(
         self,
@@ -119,9 +120,15 @@ class Attention(nn.Module):
         if self.proj.bias is not None:
             nn.init.zeros_(self.proj.bias)
 
-    def forward(self, x, mask: Optional[Tensor] = None) -> Tensor:
+    def forward(self, x, 
+                layer_id, 
+                render_layer_id,
+                render_attn_head_id,
+                mask: Optional[Tensor] = None) -> Tensor:
+        # logger.info(f"forward() - layer_id:{layer_id}, render_layer_id:{render_layer_id}")
+
         B, T, C = x.shape
-        # logger.info(f"B:{B} T:{T} C:{C}") # B:2 T:156 C:1280
+        # logger.info(f"B:{B} T:{T} C:{C}") # B:1 T:156 C:1280
 
         qkv = self.qkv(x).reshape(B, T, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         # logger.info(f"qkv.shape:{qkv.shape}") # qkv.shape:torch.Size([3, 2, 20, 156, 64])
@@ -140,7 +147,8 @@ class Attention(nn.Module):
 
         # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}") # attn len = 2
         # logger.info(f"attn.shape:{attn.shape}") # attn.shape:torch.Size([2, 20, 156, 156])
-        self._np_attn_mean = attention_patches_mean(attn)
+
+        # self._np_attn_mean = attention_patches_mean(attn)
         # logger.info(f"  _np_attn_mean.shape:{self._np_attn_mean.shape}") # _np_attn_mean.shape:(156, 156, 3)
         # visualize_attn_np(self._np_attn_mean, "_np_attn_mean")
 
@@ -149,23 +157,105 @@ class Attention(nn.Module):
         x = self.proj(x)
         # logger.info(f"  (2)x.shape:{x.shape}") # x.shape:torch.Size([2, 156, 1280])
 
-        #---------------------------
+        #------------------------------------------------------
         # Mod by Tim: 
+        # See https://github.com/mashaan14/VisionTransformer-MNIST/blob/main/VisionTransformer_MNIST.ipynb
+        # kT = k.transpose(-2, -1)
+        # attention_matrix = q @ kT
+        # # logger.info(f" attention matrix:{attention_matrix.shape}") # attention matrix torch.Size([1, 20, 156, 156])
+        # # Note, Heads = 20, 36+3 tokens = 39, 39*num_steps(4) = 156
+
+        # attention_matrix_mean = torch.mean(attention_matrix, dim=0)
+        # # logger.info(f"  attention_matrix_mean.shape:{attention_matrix_mean.shape}") # attention_matrix_mean.shape:torch.Size([20, 156, 156])
+
+        # # if (layer_id == render_layer_id):
+        # #     copy = attention_matrix_mean
+        # #     copy = torch.mean(copy, dim=0)
+        # #     logger.info(f"  attention_matrix_mean.shape:{copy.shape}")
+        # #     copy = copy.cuda().detach().cpu().clone().numpy()
+        # #     copy = cv2.applyColorMap(copy.astype(np.uint8), cv2.COLORMAP_INFERNO)
+        # #     visualize_attn_np(copy, f"attention_matrix_mean layer_id:{layer_id}")
+
+        # # To account for residual connections, we add an identity matrix to the
+        # # attention matrix and re-normalize the weights.
+        # residual_att = torch.eye(attention_matrix_mean.size(1)).to('cuda:0')
+        # aug_att_mat = attention_matrix_mean + residual_att
+        # aug_att_mat = aug_att_mat / aug_att_mat.sum(dim=-1).unsqueeze(-1)
+        # # Recursively multiply the weight matrices
+        # joint_attentions = torch.zeros(aug_att_mat.size()).to('cuda:0')
+        # joint_attentions[0] = aug_att_mat[0]
+        # for n in range(1, aug_att_mat.size(0)):
+        #     joint_attentions[n] = torch.matmul(aug_att_mat[n], joint_attentions[n-1])
+        # # logger.info(f"  joint_attentions.shape:{joint_attentions.shape}") # joint_attentions.shape:torch.Size([20, 156, 156])
+
+        # attn_heatmap = joint_attentions[0, 1:].reshape((156, 155))
+        # # logger.info(f"  attn_heatmap.shape:{attn_heatmap.shape}")   # attn_heatmap.shape:torch.Size([156, 155])
+
+        # attn_heatmap_resized = torch.nn.functional.interpolate(attn_heatmap.unsqueeze(0).unsqueeze(0), [210, 160], mode='bilinear').view(210, 160, 1)
+        
+
+        # attn_heatmap_resized = attn_heatmap_resized.cuda().detach().cpu().clone().numpy()
+        # # logger.info(f"attn_heatmap_resized:{attn_heatmap_resized.shape}") # attn_heatmap_resized:torch.Size([210, 160, 1])
+
+        # if (layer_id == render_layer_id):
+        #     visualize_attn_np(attn_heatmap_resized, f"attn_heatmap_resized layer_id:{layer_id}")
+
+        #------------------------------------------------------
+        # Note:
+        # Image observation is broken down into 6x6 = 36 image patches/tokens
+        # Total = 36+3 = 39 tokens
+        # Heads = 20, 36+3 tokens = 39, 39*num_steps(4) = 156
         x1 = (q @ k.transpose(-2, -1)) * self.scale
+        # logger.info(f"  x1.shape:{x1.shape}")   # x1.shape:torch.Size([1, 20, 156, 156])
+
+        if (layer_id == render_layer_id):
+            for (i, iter) in enumerate(x1[0]):
+                copy = iter 
+                if (i == 19):
+                    copy = torch.reshape(copy, [16, 39, 39])
+                    # View the last (15)
+                    # copy = copy[15]
+                    copy = copy[render_attn_head_id]
+                    # copy = np.swapaxes(copy, 0, 1)
+                    copy = torch.nn.functional.interpolate(copy.unsqueeze(0).unsqueeze(0), [210, 160], mode='bilinear').view(210, 160, 1)
+                    np_copy = copy.cuda().detach().cpu().clone().numpy()
+                    np_copy = cv2.applyColorMap(np_copy.astype(np.uint8), cv2.COLORMAP_INFERNO )
+                    # logger.info(f"  np_copy.shape:{np_copy.shape}")     # np_copy.shape:(39, 39, 3)
+                    self._np_attn_heatmap = np_copy
+                    # visualize_attn_np(self._np_attn_heatmap, f"np_{i}")
+
         x1 = x1.softmax(dim=-1)
         np_x1 = x1.detach().cpu().numpy()
         # x1 = x1         # x1.shape:torch.Size([2, 20, 156, 156])
         # x1 = x1[0]      # x1.shape:torch.Size([20, 156, 156])
-        np_x1 = np_x1[0][0]      # x1.shape:torch.Size([156, 156])
+        # np_x1 = np_x1[0][0]      # x1.shape:torch.Size([156, 156])
         # logger.info(f"  (3)x1.shape:{x1.shape}") # 
 
-        # np_x1 = np.mean(np_x1, axis=0)
-        # np_x1 = np.mean(np_x1, axis=0)
-        np_x1 = np_x1 * 255.
-        np_x1 = cv2.applyColorMap(np_x1.astype(np.uint8), cv2.COLORMAP_INFERNO )
-        # logger.info(f"np_x1.shape:{np_x1.shape}") # x1.shape:torch.Size([2, 20, 156, 156])
-        visualize_attn_np(np_x1, "np_x")
-        #---------------------------
+        # if (layer_id == render_layer_id):
+        #     for (i, iter) in enumerate(np_x1[0]):
+        #         np_x1 = iter
+        #         # logger.info(f"  i:{i}")
+        #         # logger.info(f"  np_x1:{np_x1}")
+        #         # logger.info(f"  np_x1.shape:{np_x1.shape}")
+        #         np_x1 = np_x1 * 255.
+        #         np_x1 = cv2.applyColorMap(np_x1.astype(np.uint8), cv2.COLORMAP_INFERNO )
+                
+        #         if (i == 19):
+        #             # logger.info(f"np_x1.shape:{np_x1.shape}") # np_x1.shape:(156, 156, 3)
+        #             # (tps)tokens_per_step = 39
+        #             # (T)num_steps = 4
+        #             # Reorder [T*tps, T*tps, C] into [T*T, tps, tps, C]
+        #             np_x1 = np.reshape(np_x1, [16, 39, 39, 3])
+
+        #             # View the mean (of the 4x4 = 16)
+        #             # np_x1 = np.mean(np_x1, axis=0)
+        #             # logger.info(f"  np_x1.shape:{np_x1.shape}")
+
+        #             # View the last (15)
+        #             np_x1 = np_x1[0]
+        #             visualize_attn_np(np_x1, f"np_{i}")
+        # # logger.info(f"Viz all 20 heads")
+        #------------------------------------------------------
 
         # x len = 2
         # logger.info(f"len(x):{len(x)}, type:{type(x)}")
@@ -180,6 +270,9 @@ class CausalSelfAttention(Attention):
     def forward(
         self,
         x: Tensor,
+        layer_id, 
+        render_layer_id,
+        render_attn_head_id,
         mask: Optional[Tensor] = None,
         custom_causal_mask: Optional[Tensor] = None,
         prefix_length: Optional[int] = 0,
@@ -187,7 +280,8 @@ class CausalSelfAttention(Attention):
         if x.ndim != 3:
             raise ValueError("Expect queries of shape [B, T, D].")
 
-        # logger.info(f"CausalSelfAttention x.shape:{x.shape} mask:{mask}")  # x.shape:torch.Size([2, 156, 1280])
+        # logger.info(f"CausalSelfAttention x.shape:{x.shape} mask:{mask}")  # x.shape:torch.Size([1, 156, 1280])
+        # logger.info(f"forward() - layer_id:{layer_id}, render_layer_id:{render_layer_id}")
 
         seq_len = x.shape[1]
         # If custom_causal_mask is None, the default causality assumption is
@@ -215,7 +309,11 @@ class CausalSelfAttention(Attention):
         # logger.info(f"np_mask.shape:{np_mask.shape}")
         # visualize_attn_np(np_mask, "np_mask")
 
-        return super().forward(x, mask)
+        return super().forward(x, 
+                            layer_id=layer_id, 
+                            render_layer_id=render_layer_id,
+                            render_attn_head_id=render_attn_head_id,
+                            mask=mask)       # Attention.forward(4) called here
 
 #------------------------------------------------
 class Block(nn.Module):
@@ -232,14 +330,23 @@ class Block(nn.Module):
         self.mlp = MLP(embed_dim, init_scale)
         self.dropout_2 = nn.Dropout(dropout_rate)
 
-    def forward(self, x, **kwargs):
-        x = x + self.dropout_1(self.attn(self.ln_1(x), **kwargs))
+    def forward(self, x, layer_id, render_layer_id, render_attn_head_id, **kwargs):
+        # logger.info(f"forward() - layer_id:{layer_id}, render_layer_id:{render_layer_id}")
+        # logger.info(f"forward() - x.shape:{x.shape}")       # x.shape:torch.Size([1, 156, 1280])
+
+        x = x + self.dropout_1(self.attn(self.ln_1(x), 
+                                         layer_id=layer_id, 
+                                         render_layer_id=render_layer_id,
+                                         render_attn_head_id = render_attn_head_id,
+                                         **kwargs))         # CausalSelfAttention.forward(3) called here
         x = x + self.dropout_2(self.mlp(self.ln_2(x)))
         return x
 
 #------------------------------------------------
 class Transformer(nn.Module):
     r"""A transformer stack."""
+    _render_layer_id = None
+    _render_attn_head_id = None
 
     def __init__(
         self,
@@ -285,9 +392,16 @@ class Transformer(nn.Module):
             h = h * mask[:, :, None]
             mask = mask[:, None, None, :]
 
-        for block in self.layers:
+        # logger.info(f"forward() - h.shape:{h.shape}")   # h.shape:torch.Size([1, 156, 1280])
+
+        self._render_layer_id = 9          # 0-9
+        self._render_attn_head_id = 0     # 0-15 (4x4). See L211
+        for i, block in enumerate(self.layers):   # Block.forward(2) called here
             h = block(
-                h,
+                x=h,
+                layer_id=i,
+                render_layer_id=self._render_layer_id,
+                render_attn_head_id=self._render_attn_head_id,
                 mask=mask,
                 custom_causal_mask=custom_causal_mask,
                 prefix_length=prefix_length,
@@ -383,6 +497,9 @@ class MultiGameDecisionTransformer(nn.Module):
 
         self.ret_linear = nn.Linear(self.d_model, self.num_returns)
         self.act_linear = nn.Linear(self.d_model, self.num_actions)
+        logger.info(f"ret_linear num_returns:{self.num_returns} ")  # 120
+        logger.info(f"act_linear num_actions:{self.num_actions} ")  # 18
+
         if self.predict_reward:
             self.rew_linear = nn.Linear(self.d_model, self.num_rewards)
 
@@ -401,7 +518,7 @@ class MultiGameDecisionTransformer(nn.Module):
 
         for i, layer in enumerate(layers):
             if layer.attn._np_attn_mean is None:
-                logger.info(f"  Layer:{i} Not initialized; type(_np_attn_mean):{type(layer.attn._np_attn_mean)}, returning...")
+                # logger.info(f"  Layer:{i} Not initialized; type(_np_attn_mean):{type(layer.attn._np_attn_mean)}, returning...")
                 continue
 
             # logger.info(f"  layer.attn._np_attn_mean type:{type(layer.attn._np_attn_mean)}")
@@ -484,12 +601,22 @@ class MultiGameDecisionTransformer(nn.Module):
             
 
     def update_game_image(self, img):
+        # logger.info(f"update_game_image() - img.shape:{img.shape}")  # img.shape:(210, 160, 3)
         self._np_rgb_img = img
-        # self._np_rgb_img = self._np_rgb_img * 255.
-        # self._np_rgb_img = cv2.applyColorMap(self._np_rgb_img.astype(np.uint8), cv2.COLORMAP_INFERNO )
-        # # logger.info(f"type:{type(self._np_rgb_img)}")
-        # cv2.imshow(f"_np_rgb_img", self._np_rgb_img)
-        # cv2.waitKey(100) 
+        self._np_rgb_img = self._np_rgb_img * 255.
+        self._np_rgb_img = cv2.applyColorMap(self._np_rgb_img.astype(np.uint8), cv2.COLORMAP_INFERNO )
+        img = self._np_rgb_img
+        # logger.info(f"type:{type(self._np_rgb_img)}")
+
+        # With attention map
+        # Adjusted in Transformer.forward(), L396
+        render_layer_id = self.transformer._render_layer_id
+        # render_attn_head_id = self.transformer._render_attn_head_id
+        np_heatmap = self.transformer.layers[render_layer_id].attn._np_attn_heatmap
+        img = cv2.addWeighted(self._np_rgb_img, 0.5, np_heatmap, 0.5, 0)
+
+        cv2.imshow(f"img", img)
+        cv2.waitKey(1) 
         # cv2.destroyAllWindows()
 
 
@@ -525,10 +652,13 @@ class MultiGameDecisionTransformer(nn.Module):
             Image embedding of shape [B x T x output_dim] or [B x T x _ x output_dim].
         """
         assert len(image.shape) == 5
-        # logger.info(f"_image_embedding() - image:{image.shape}")  # image:torch.Size([2, 4, 1, 84, 84])
+        # logger.info(f"_image_embedding() - image:{image.shape}")  # image:torch.Size([1, 4, 1, 84, 84])
 
         image_dims = image.shape[-3:]
         batch_dims = image.shape[:2]
+        # logger.info(f"image_dims:{image_dims} batch_dims:{batch_dims}") 
+        # image_dims:torch.Size([1, 84, 84]) 
+        # batch_dims:torch.Size([1, 4])
 
         # Mod by Tim: Visualize the incoming images patches (84 x 84). These seem to be the 
         # B = Batch of num_envs
@@ -540,30 +670,45 @@ class MultiGameDecisionTransformer(nn.Module):
         # visualize_attn_tensor(torch.from_numpy(np_image))
 
         # Reshape to [BT x C x H x W].
-        image = torch.reshape(image, (-1,) + image_dims) # image:torch.Size([8, 1, 84, 84])
+        # logger.info(f"(1)image.shape:{image.shape}")   # image.shape:torch.Size([1, 4, 1, 84, 84])
+        image = torch.reshape(image, (-1,) + image_dims) 
+        # logger.info(f"(2)image.shape:{image.shape}")   # image.shape:torch.Size([4, 1, 84, 84])
+
         # np_image = image.cpu().numpy()
         # np_image = np.mean(np_image, axis=0)
         # visualize_attn_tensor(torch.from_numpy(np_image))
 
         # Perform any-image specific processing.
         image = image.to(dtype=torch.float32) / 255.0
+        # logger.info(f"(3)image.shape:{image.shape}")    # image.shape:torch.Size([4, 1, 84, 84])
 
-        image_emb = self.image_emb(image)  # [BT x D x P x P] # image_emb:torch.Size([4, 1280, 6, 6])  
+        image_emb = self.image_emb(image)  # [BT x D x P x P] 
+        # logger.info(f"(4)image_emb.shape:{image_emb.shape}")    # image_emb.shape:torch.Size([4, 1280, 6, 6])
 
         # haiku.Conv2D is channel-last, so permute before reshape below for consistency
-        image_emb = image_emb.permute(0, 2, 3, 1)  # [BT x P x P x D] # image_emb:torch.Size([4, 6, 6, 1280])
+        # [BT x P x P x D] 
+        image_emb = image_emb.permute(0, 2, 3, 1)  
+        # See L411, nn.Conv2d()
+        # logger.info(f"(5)image_emb.shape:{image_emb.shape}")    # image_emb.shape:torch.Size([4, 6, 6, 1280])
         
 
         # Reshape to [B x T x P*P x D].
         image_emb = torch.reshape(image_emb, batch_dims + (-1, self.d_model))
-        image_emb = image_emb + self.image_pos_enc  # image_emb:torch.Size([1, 4, 36, 1280])
+        # logger.info(f"(6)image_emb.shape:{image_emb.shape}")    # image_emb.shape:torch.Size([1, 4, 36, 1280])
+
+        image_emb = image_emb + self.image_pos_enc  
+        # logger.info(f"(7)image_emb.shape:{image_emb.shape}")    # image_emb:torch.Size([1, 4, 36, 1280])
 
         return image_emb
 
     def _embed_inputs(self, obs: Tensor, ret: Tensor, act: Tensor, rew: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         # Embed only prefix_frames first observations.
         # obs are [B x T x C x H x W].
+        # logger.info(f"_embed_inputs()")
+        # logger.info(f"  (1)obs.shape:{obs.shape}")  # [B x T x C x W x H] - obs.shape:torch.Size([1, 4, 1, 84, 84])
         obs_emb = self._image_embedding(obs)
+        # logger.info(f"  (2)obs_emb.shape:{obs_emb.shape}")  # [B x T x P*P x D] - obs_emb.shape:torch.Size([1, 4, 36, 1280])
+
         # Embed returns and actions
         # Encode returns.
         ret = encode_return(ret, self.return_range)
@@ -576,9 +721,11 @@ class MultiGameDecisionTransformer(nn.Module):
             rew_emb = None
         return obs_emb, ret_emb, act_emb, rew_emb
 
+    # Mod by Tim:
+    # Note in subsequent forward passes, "token_emb" becomes "x"
     def forward(self, inputs: Mapping[str, Tensor]) -> Mapping[str, Tensor]:
         r"""Process sequence."""
-        logger.info(f"forward() - inputs:{inputs}")
+        # logger.info(f"forward() - inputs:{inputs}")
 
         num_batch = inputs["actions"].shape[0]
         num_steps = inputs["actions"].shape[1] 
@@ -601,12 +748,19 @@ class MultiGameDecisionTransformer(nn.Module):
         )
         device = obs_emb.device
 
-        # logger.info(f"forward() - obs_emb:{obs_emb.shape}")   # obs_emb:torch.Size([2, 4, 36, 1280])
+        # logger.info(f"forward() ")
+        # logger.info(f"  obs_emb:{obs_emb.shape}")   # [B x T x P*P x D] - obs_emb:torch.Size([1, 4, 36, 1280])
+        # logger.info(f"  ret_emb:{ret_emb.shape}")   # ([1, 4, 1280])
+        # logger.info(f"  act_emb:{act_emb.shape}")   # ([1, 4, 1280])
+        # logger.info(f"  rew_emb:{rew_emb.shape}")   # ([1, 4, 1280])
 
         if self.spatial_tokens:
             # obs is [B x T x W x D]
             num_obs_tokens = obs_emb.shape[2]
+            # logger.info(f"  num_obs_tokens:{num_obs_tokens}")   # 36
+
             obs_emb = torch.reshape(obs_emb, obs_emb.shape[:2] + (-1,))
+            # logger.info(f"  obs_emb:{obs_emb.shape}")   # obs_emb:torch.Size([1, 4, 46080])
             # obs is [B x T x W*D]
         else:
             num_obs_tokens = 1
@@ -619,20 +773,34 @@ class MultiGameDecisionTransformer(nn.Module):
         # Embeddings are [B x T x D].
         if self.predict_reward:
             token_emb = torch.cat([obs_emb, ret_emb, act_emb, rew_emb], dim=-1)
+            # logger.info(f"  token_emb:{token_emb.shape}")   # token_emb:torch.Size([1, 4, 49920]), bcos 46080+1280+1280+1280 = 49920
+
             tokens_per_step = num_obs_tokens + 3
+            # tokens_per_step is 36+3=39
             # sequence is [obs ret act rew ... obs ret act rew]
         else:
             token_emb = torch.cat([obs_emb, ret_emb, act_emb], dim=-1)
             tokens_per_step = num_obs_tokens + 2
             # sequence is [obs ret act ... obs ret act]
+
+        # logger.info(f"  (1)token_emb:{token_emb.shape}, tokens_per_step:{tokens_per_step}")   
+        # token_emb:torch.Size([1, 4, 49920]), tokens_per_step:36+3=39
+
         token_emb = torch.reshape(token_emb, [num_batch, tokens_per_step * num_steps, self.d_model])
+        # logger.info(f"  (2)token_emb:{token_emb.shape}")   # token_emb:torch.Size([1, 156, 1280])
+        # Note:Tokens_per_step(39)*4 = 156
+        # So (4*49920)/156 = 1280
+
         # Create position embeddings.
         token_emb = token_emb + self.positional_embedding
-        # Run the transformer over the inputs.
+        # logger.info(f"  (3)token_emb:{token_emb.shape}") # token_emb:torch.Size([1, 156, 1280])
 
+        # Run the transformer over the inputs.
         # Token dropout.
         batch_size = token_emb.shape[0]
         obs_mask = np.ones([batch_size, num_steps, num_obs_tokens], dtype=bool)
+        # logger.info(f"  obs_mask:{obs_mask.shape}")     # obs_mask:(1, 4, 36)
+
         ret_mask = np.ones([batch_size, num_steps, 1], dtype=bool)
         act_mask = np.ones([batch_size, num_steps, 1], dtype=bool)
         rew_mask = np.ones([batch_size, num_steps, 1], dtype=bool)
@@ -641,8 +809,10 @@ class MultiGameDecisionTransformer(nn.Module):
             ret_mask[:, 1:] = 0
         if self.predict_reward:
             mask = [obs_mask, ret_mask, act_mask, rew_mask]
+            # logger.info(f"  predict_reward - yes")
         else:
             mask = [obs_mask, ret_mask, act_mask]
+            # logger.info(f"  predict_reward - no")
 
         mask = np.concatenate(mask, axis=-1)    
         # logger.info(f"  (1)mask:{mask.shape}") # mask:(1, 4, 39)
@@ -675,6 +845,9 @@ class MultiGameDecisionTransformer(nn.Module):
             sequential_causal_mask = np.tril(np.ones((seq_len, seq_len)))
             num_timesteps = seq_len // tokens_per_step
             num_non_obs_tokens = tokens_per_step - num_obs_tokens
+            # logger.info(f"  seq_len:{seq_len}, num_timesteps:{num_timesteps}, num_non_obs_tokens:{num_non_obs_tokens}")
+            # seq_len:156, num_timesteps:4, num_non_obs_tokens:3
+
             diag = [
                 np.ones((num_obs_tokens, num_obs_tokens)) if i % 2 == 0 else np.zeros((num_non_obs_tokens, num_non_obs_tokens))
                 for i in range(num_timesteps * 2)
@@ -684,21 +857,36 @@ class MultiGameDecisionTransformer(nn.Module):
 
             custom_causal_mask = np.logical_or(sequential_causal_mask, block_diag)
             # logger.info(f"  (1)custom_causal_mask.shape:{custom_causal_mask.shape} ")    # custom_causal_mask.shape:(156, 156)
+
             custom_causal_mask = torch.tensor(custom_causal_mask, dtype=torch.bool, device=device)
             # logger.info(f"  (2)custom_causal_mask.shape:{custom_causal_mask.shape} ")   # custom_causal_mask.shape:torch.Size([156, 156]) 
+ 
+        # logger.info(f"  token_emb.shape:{token_emb.shape} ")                    # token_emb.shape:torch.Size([1, 156, 1280])
+        # logger.info(f"  mask.shape:{mask.shape} ")                              # mask.shape:torch.Size([1, 156])
+        # logger.info(f"  custom_causal_mask.shape:{custom_causal_mask.shape} ")  # custom_causal_mask.shape:torch.Size([156, 156])
 
+        output_emb = self.transformer(token_emb, mask, custom_causal_mask)      # Transformer.forward(1) called here
 
-        output_emb = self.transformer(token_emb, mask, custom_causal_mask)
         # logger.info(f"  output_emb:{output_emb.shape} ")    # output_emb:torch.Size([1, 156, 1280]) 
 
         # Output_embeddings are [B x 3T x D].
         # Next token predictions (tokens one before their actual place).
         ret_pred = output_emb[:, (num_obs_tokens - 1) :: tokens_per_step, :]
+        # logger.info(f"  (1)ret_pred.shape:{ret_pred.shape} ")      # ret_pred.shape:torch.Size([1, 4, 1280]) 
         act_pred = output_emb[:, (num_obs_tokens - 0) :: tokens_per_step, :]
+        # logger.info(f"  (1)act_pred.shape:{act_pred.shape} ")      # act_pred.shape:torch.Size([1, 4, 1280])
         embeds = torch.cat([ret_pred, act_pred], dim=-1)
+        # logger.info(f"  embeds.shape:{embeds.shape} ")      # embeds.shape:torch.Size([1, 4, 2560]) Note: 2560/1280 = 2
+
         # Project to appropriate dimensionality.
+        # See L441; nn.Linear()
         ret_pred = self.ret_linear(ret_pred)
+        # logger.info(f"  (2)ret_pred.shape:{ret_pred.shape} ")   
+        # ret_pred.shape:torch.Size([1, 4, 120]) See run_atari.py L114 self.num_returns; RETURN_RANGE = [-20, 100]
         act_pred = self.act_linear(act_pred)
+        # logger.info(f"  (2)act_pred.shape:{act_pred.shape} ") 
+        # act_pred.shape:torch.Size([1, 4, 18])  See run_atari.py L111 self.num_actions; NUM_ACTIONS=18  
+
         # Return logits as well as pre-logits embedding.
         result_dict = {
             "embeds": embeds,
@@ -814,7 +1002,9 @@ class MultiGameDecisionTransformer(nn.Module):
         # Set returns-to-go with an (optimistic) autoregressive sample.
         if single_return_token:
             # Since only first return is used by the model, only sample that (faster).
-            ret_logits = logits_fn(inputs)["return_logits"][:, 0, :]
+            ret_logits = logits_fn(inputs)["return_logits"][:, 0, :]        # MultiGameDecisionTransformer.forward(0) called here
+            # logger.info(f"  ret_logits.shape:{ret_logits.shape}")   # ret_logits.shape:torch.Size([1, 120])
+
             ret_sample = ret_sample_fn(rng, ret_logits)
             inputs["returns-to-go"][:, 0] = ret_sample
         else:
@@ -833,12 +1023,12 @@ class MultiGameDecisionTransformer(nn.Module):
 
         # --- Extract attention map(s)
         # logger.info(f"  X) Get Attention Map(s)")
-        self.get_attention_map()
-        self._np_attn_mean = attention_layers_mean(self._np_attn_container)
+        # self.get_attention_map()
+        # self._np_attn_mean = attention_layers_mean(self._np_attn_container)
 
         # --- Visualize Attention
         # if self._np_rgb_img is not None:
-            # visualize_predict(self, self._np_rgb_img, self.img_size, self.patch_size, torch_device)
+        #     visualize_predict(self, self._np_rgb_img, self.img_size, self.patch_size, torch_device)
 
 
         # Generate a sample from action logits.
