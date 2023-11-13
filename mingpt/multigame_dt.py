@@ -205,7 +205,7 @@ class Attention(nn.Module):
         # Image observation is broken down into 6x6 = 36 image patches/tokens
         # Total = 36+3 = 39 tokens
         # Heads = 20, 36+3 tokens = 39, 39*num_steps(4) = 156
-        x1 = (q @ k.transpose(-2, -1)) * self.scale
+        # x1 = (q @ k.transpose(-2, -1)) * self.scale
         # logger.info(f"  x1.shape:{x1.shape}")   # x1.shape:torch.Size([1, 20, 156, 156])
 
         #------------------------------------------------------
@@ -234,19 +234,22 @@ class Attention(nn.Module):
         #             # visualize_attn_np(self._np_attn_heatmap, f"np_{i}")
 
         #------------------------------------------------------
+        # copy2 = x1
+        copy2 = x
+        logger.info(f"  x1.shape:{x1.shape}")   # x1.shape:torch.Size([1, 156, 1280])
+
         # keep only the output patch attention
-        copy2 = x1
         nh = 20
         # copy2 = copy2[0, :, 0, 1:]
         copy2 = copy2[0, :, 0, 0:]
-        # copy2 = copy2[0, :, 0:, 0]
-        # logger.info(f"    (1)copy2.shape:{copy2.shape}")   # copy2.shape:torch.Size([20, 155])
+        # copy2 = copy2[0, :, :, :]
+        # logger.info(f"    (1)copy2.shape:{copy2.shape}")   # copy2.shape:torch.Size([20, 156])
 
         # input of size 3120
-        # w_featmap = 39
-        # h_featmap = 4
-        w_featmap = 12
-        h_featmap = 13
+        w_featmap = 39
+        h_featmap = 4
+        # w_featmap = 12
+        # h_featmap = 13
         copy2 = copy2.reshape(nh, w_featmap, h_featmap)
         # logger.info(f"    (2)copy2.shape:{copy2.shape}")   # 
 
@@ -258,7 +261,7 @@ class Attention(nn.Module):
         # logger.info(f"    (3)copy2.shape:{copy2.shape}") 
 
         np_copy = copy2.cuda().detach().cpu().clone().numpy()
-        # np_copy = np_copy / 10.
+        np_copy = np_copy / 5.
         np_copy = cv2.applyColorMap(np_copy.astype(np.uint8), cv2.COLORMAP_INFERNO )
         # logger.info(f"  np_copy.shape:{np_copy.shape}")     # np_copy.shape:(39, 39, 3)
         self._np_attn_heatmap = np_copy
