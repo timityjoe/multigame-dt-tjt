@@ -49,6 +49,7 @@ def min_max(x, mins, maxs, axis=None):
     result = (x - mins)/(maxs - mins)
     return result
 
+
 # Form of [C x H x W]
 def visualize_attn_tensor(image, string):    
     np_image = image.cpu().numpy()
@@ -58,6 +59,19 @@ def visualize_attn_tensor(image, string):
     np_image = np.swapaxes(np_image, 0, 1)
     np_image = cv2.applyColorMap(np_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
     visualize_attn_np(np_image, string)
+
+
+
+def visualize_attn_tensor_detach(image, string):    
+    np_image = image.cuda().detach().cpu().clone().numpy()
+    # Change to [W x H x C]
+    np_image = np.swapaxes(np_image, 0, 2)
+    # Change to [H x W x C]
+    np_image = np.swapaxes(np_image, 0, 1)
+    np_image = cv2.applyColorMap(np_image.astype(np.uint8), cv2.COLORMAP_INFERNO )
+    visualize_attn_np(np_image, string)
+
+
 
 def visualize_attn_np(np_attention, string):
     # n_heads = attention.shape[1]
