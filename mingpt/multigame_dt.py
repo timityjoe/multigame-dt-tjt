@@ -240,6 +240,7 @@ class Attention(nn.Module):
 
         #------------------------------------------------------
         # See L460
+        # https://lh6.googleusercontent.com/kSRu-v0iL9YPPzSrrj9zcVK8ze1pXvY5CM6TXbBnHD_0qO6E3kr_tTXl_XJSIOXmmOqTC2-eKpmLg280rPtMDZ4=w1280
         copy2 = touchpoint
         # logger.info(f"  x1.shape:{x1.shape}")   # x1.shape:torch.Size([1, 20, 156, 156])
 
@@ -249,13 +250,17 @@ class Attention(nn.Module):
         # logger.info(f"    (1)copy2.shape:{copy2.shape}")   # copy2.shape:torch.Size([20, 156])
 
         # Change from [20, 156] to [156]
-        copy2 = torch.mean(copy2, dim=0)
+        # copy2 = torch.mean(copy2, dim=0)
         # Or, select by layer
-        # copy2 = copy2[render_attn_head_id]
+        copy2 = copy2[render_attn_head_id]
         # [156] to [4, 39]
         copy2 = copy2.reshape(4, 39)
+
         # [4, 39] to [39]
         copy2 = torch.mean(copy2, dim=0)
+        # Or, select latest layer
+        # copy2 = copy2[3]
+
         # [39] to [36]
         copy2 = copy2[0:36]
         # logger.info(f"    (2)copy2.shape:{copy2.shape}")
@@ -461,7 +466,7 @@ class Transformer(nn.Module):
 
         # logger.info(f"forward() - h.shape:{h.shape}")   # h.shape:torch.Size([1, 156, 1280])
 
-        self._render_layer_id = 9          # 0-9
+        self._render_layer_id = 8          # 0-9
         # self._render_attn_head_id = 0     # 0-15 (4x4). See L211
         self._render_attn_head_id = 19     # 0-19 (4x4). See L252
         for i, block in enumerate(self.layers):   # Block.forward(2) called here

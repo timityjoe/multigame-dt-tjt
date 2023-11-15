@@ -94,9 +94,10 @@ def create_env(env_name, env_id, sticky_actions=False, noop_max=30, terminal_on_
     env = SequenceEnvironmentWrapper(env, num_stack_frames=4, jpeg_obs=True)
     return env
 
-env_name = "Breakout"
+# env_name = "Breakout"
 # env_name = "Assault"
 # env_name = "Atlantis"
+env_name = "Seaquest"
 
 # num_envs = 8
 num_envs = 1
