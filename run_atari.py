@@ -95,6 +95,9 @@ def create_env(env_name, env_id, sticky_actions=False, noop_max=30, terminal_on_
     return env
 
 env_name = "Breakout"
+# env_name = "Assault"
+# env_name = "Atlantis"
+
 # num_envs = 8
 num_envs = 1
 # env_fn = lambda: create_env(env_name)
