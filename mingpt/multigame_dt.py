@@ -138,12 +138,17 @@ class Attention(nn.Module):
         # logger.info(f"q.shape:{q.shape} k.shape:{q.shape} v.shape:{q.shape}") 
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
+        # logger.info(f"  (1)attn.shape:{attn.shape}")    # attn.shape:torch.Size([1, 20, 156, 156])
+
+        touchpoint = attn
 
         if mask is not None:
             mask_value = -torch.finfo(attn.dtype).max  # max_neg_value
             attn = attn.masked_fill(~mask.to(dtype=torch.bool), mask_value)
 
         attn = attn.softmax(dim=-1)
+        # logger.info(f"  (2)attn.shape:{attn.shape}")    # attn.shape:torch.Size([1, 20, 156, 156])
+
 
         # logger.info(f"len(attn):{len(attn)}, type:{type(attn)}") # attn len = 2
         # logger.info(f"attn.shape:{attn.shape}") # attn.shape:torch.Size([2, 20, 156, 156])
@@ -205,7 +210,7 @@ class Attention(nn.Module):
         # Image observation is broken down into 6x6 = 36 image patches/tokens
         # Total = 36+3 = 39 tokens
         # Heads = 20, 36+3 tokens = 39, 39*num_steps(4) = 156
-        # x1 = (q @ k.transpose(-2, -1)) * self.scale
+        x1 = (q @ k.transpose(-2, -1)) * self.scale
         # logger.info(f"  x1.shape:{x1.shape}")   # x1.shape:torch.Size([1, 20, 156, 156])
 
         #------------------------------------------------------
@@ -234,42 +239,65 @@ class Attention(nn.Module):
         #             # visualize_attn_np(self._np_attn_heatmap, f"np_{i}")
 
         #------------------------------------------------------
-        # copy2 = x1
-        copy2 = x
-        logger.info(f"  x1.shape:{x1.shape}")   # x1.shape:torch.Size([1, 156, 1280])
+        # See L460
+        # https://lh6.googleusercontent.com/kSRu-v0iL9YPPzSrrj9zcVK8ze1pXvY5CM6TXbBnHD_0qO6E3kr_tTXl_XJSIOXmmOqTC2-eKpmLg280rPtMDZ4=w1280
+        copy2 = touchpoint
+        # logger.info(f"  x1.shape:{x1.shape}")   # x1.shape:torch.Size([1, 20, 156, 156])
 
         # keep only the output patch attention
-        nh = 20
-        # copy2 = copy2[0, :, 0, 1:]
-        copy2 = copy2[0, :, 0, 0:]
-        # copy2 = copy2[0, :, :, :]
+        # copy2 = copy2[0, :, 0, :]
+        copy2 = copy2[0, :, :, 0]
         # logger.info(f"    (1)copy2.shape:{copy2.shape}")   # copy2.shape:torch.Size([20, 156])
 
+        # Change from [20, 156] to [156]
+        # copy2 = torch.mean(copy2, dim=0)
+        # Or, select by layer
+        copy2 = copy2[render_attn_head_id]
+        # [156] to [4, 39]
+        copy2 = copy2.reshape(4, 39)
+
+        # [4, 39] to [39]
+        copy2 = torch.mean(copy2, dim=0)
+        # Or, select latest layer
+        # copy2 = copy2[3]
+
+        # [39] to [36]
+        copy2 = copy2[0:36]
+        # logger.info(f"    (2)copy2.shape:{copy2.shape}")
+
+
         # input of size 3120
-        w_featmap = 39
-        h_featmap = 4
-        # w_featmap = 12
-        # h_featmap = 13
-        copy2 = copy2.reshape(nh, w_featmap, h_featmap)
-        # logger.info(f"    (2)copy2.shape:{copy2.shape}")   # 
+        w_featmap = 6
+        h_featmap = 6
+        copy2 = copy2.reshape(w_featmap, h_featmap)
+        # logger.info(f"    (3)copy2.shape:{copy2.shape}")   # 
 
         # copy2 = torch.nn.functional.interpolate(copy2.unsqueeze(0).unsqueeze(0), [210, 160], mode="nearest").view(210, 160, 1)
         # copy2 = torch.nn.functional.interpolate(copy2.unsqueeze(0), scale_factor=16, mode="nearest")[0]
-        copy2 = torch.nn.functional.interpolate(copy2.unsqueeze(0), [210, 160], mode="nearest")[0]
-        # logger.info(f"    (3)copy2.shape:{copy2.shape}")    # copy2.shape:torch.Size([20, 210, 160])
-        copy2 = copy2[render_attn_head_id] 
+        # copy2 = torch.nn.functional.interpolate(copy2.unsqueeze(0), [210, 160], mode="nearest")[0]
+
+        copy2 = torch.nn.functional.interpolate(copy2.unsqueeze(0).unsqueeze(0), [210, 160], mode="nearest").view(210, 160, 1)
+        # logger.info(f"    (4)copy2.shape:{copy2.shape}")    # copy2.shape:torch.Size([20, 210, 160])
+        # copy2 = copy2[render_attn_head_id] 
         # logger.info(f"    (3)copy2.shape:{copy2.shape}") 
 
         np_copy = copy2.cuda().detach().cpu().clone().numpy()
+
         np_copy = np_copy / 5.
+        # logger.info(f"  np_copy:{np_copy}")
+        # Subtract 0.5 from tensor
+        # np_copy = np.subtract(np_copy, 0.9)
+
         np_copy = cv2.applyColorMap(np_copy.astype(np.uint8), cv2.COLORMAP_INFERNO )
         # logger.info(f"  np_copy.shape:{np_copy.shape}")     # np_copy.shape:(39, 39, 3)
-        self._np_attn_heatmap = np_copy
-        # visualize_attn_np(self._np_attn_heatmap, f"np_{i}")
+
+        if (layer_id == render_layer_id):
+            self._np_attn_heatmap = np_copy
+            # visualize_attn_np(self._np_attn_heatmap, f"np_{i}")
 
         #------------------------------------------------------
-        x1 = x1.softmax(dim=-1)
-        np_x1 = x1.detach().cpu().numpy()
+        # x1 = x1.softmax(dim=-1)
+        # np_x1 = x1.detach().cpu().numpy()
         # x1 = x1         # x1.shape:torch.Size([2, 20, 156, 156])
         # x1 = x1[0]      # x1.shape:torch.Size([20, 156, 156])
         # np_x1 = np_x1[0][0]      # x1.shape:torch.Size([156, 156])
@@ -438,8 +466,9 @@ class Transformer(nn.Module):
 
         # logger.info(f"forward() - h.shape:{h.shape}")   # h.shape:torch.Size([1, 156, 1280])
 
-        self._render_layer_id = 5          # 0-9
-        self._render_attn_head_id = 0     # 0-15 (4x4). See L211
+        self._render_layer_id = 8          # 0-9
+        # self._render_attn_head_id = 0     # 0-15 (4x4). See L211
+        self._render_attn_head_id = 19     # 0-19 (4x4). See L252
         for i, block in enumerate(self.layers):   # Block.forward(2) called here
             h = block(
                 x=h,
