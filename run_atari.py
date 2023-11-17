@@ -175,25 +175,26 @@ optimal_action_fn = functools.partial(
 # --- Calculate Results
 logger.info(f"6) Calculate Results")
 task_results = {}
-task_results["rew_sum"] = batch_rollout1(device, envs, model, optimal_action_fn, num_episodes=16, log_interval=100)
+# task_results["rew_sum"] = batch_rollout1(device, envs, model, optimal_action_fn, num_episodes=16, log_interval=100)
+task_results["rew_sum"] = batch_rollout1(device, envs, model, optimal_action_fn, num_episodes=160, log_interval=100)
 [env.close() for env in envs]
 
 # --- Log metrics
 logger.info(f"7) Log metrics")
 def print_metrics(metric):
-    print(f"    mean: {np.mean(metric):.2f}")
-    print(f"    std: {np.std(metric):.2f}")
-    print(f"    median: {np.median(metric):.2f}")
-    print(f"    iqm: {scipy.stats.trim_mean(metric, proportiontocut=0.25):.2f}")
+    logger.info(f"    mean: {np.mean(metric):.2f}")
+    logger.info(f"    std: {np.std(metric):.2f}")
+    logger.info(f"    median: {np.median(metric):.2f}")
+    logger.info(f"    iqm: {scipy.stats.trim_mean(metric, proportiontocut=0.25):.2f}")
 
 
-print("Reward Sum:")
+logger.info("Reward Sum:")
 print_metrics(task_results["rew_sum"])
 
-print("-" * 10)
+logger.info("-" * 10)
 
 task_results["human_normalized_score"] = [
     get_human_normalized_score(env_name.lower(), score) for score in task_results["rew_sum"]
 ]
-print("Human Normalized Score:")
+logger.info("Human Normalized Score:")
 print_metrics(task_results["human_normalized_score"])
